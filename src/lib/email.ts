@@ -159,7 +159,7 @@ export async function sendAmendmentReviewedEmail(params: {
   await getResend().emails.send({
     from:    FROM,
     to:      params.userEmail,
-    subject: `[${APP_NAME}] Rettifica ${actionLabel} — ${typeLabel} ${monthLabel(params.year, params.month)}`,
+    subject: `${approved ? '✅' : '❌'} Rettifica ${actionLabel} — ${typeLabel} ${monthLabel(params.year, params.month)}`,
     html:    layout(`Rettifica ${actionLabel}`, body),
   }).catch((err) => console.error('sendAmendmentReviewedEmail error:', err))
 }
