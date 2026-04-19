@@ -1,0 +1,614 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { and, eq } from 'drizzle-orm'
+import { auth } from '@/auth'
+import { db } from '@/db'
+import {
+  users, roles, profiles, profileSections, roleProfiles,
+  absenceTypes, expenseCategories, vehicleTypes, engagementTypes,
+  italianHolidays,
+} from '@/db/schema'
+import { requireSection, HttpError } from '@/lib/permissions/auth-helpers'
+import { invalidateHolidayCache } from '@/lib/italian-calendar'
+import { SECTIONS } from '@/lib/permissions/sections'
+import type { SectionCode } from '@/lib/permissions/sections'
+import { z } from 'zod'
+import bcrypt from 'bcryptjs'
+import { sendWelcomeEmail, sendPasswordResetEmail } from '@/lib/email'
+
+// ─── USERS ────────────────────────────────────────────────────────────────────
+
+export type UserRow = {
+  id:                 string
+  firstName:          string
+  lastName:           string
+  email:              string
+  roleId:             string | null
+  roleName:           string | null
+  active:             boolean
+  mustChangePassword: boolean
+  tempPassword:       string | null
+}
+
+export type RoleOption = { id: string; name: string }
+
+export async function getUserList(): Promise<{ users: UserRow[]; roles: RoleOption[] }> {
+  const session = await auth()
+  requireSection(session, 'PARAM_USERS')
+
+  const [userRows, roleRows] = await Promise.all([
+    db
+      .select({
+        id:                 users.id,
+        firstName:          users.firstName,
+        lastName:           users.lastName,
+        email:              users.email,
+        roleId:             users.roleId,
+        roleName:           roles.name,
+        active:             users.active,
+        mustChangePassword: users.mustChangePassword,
+        tempPassword:       users.tempPassword,
+      })
+      .from(users)
+      .leftJoin(roles, eq(roles.id, users.roleId))
+      .orderBy(users.lastName, users.firstName),
+    db.select({ id: roles.id, name: roles.name }).from(roles).orderBy(roles.name),
+  ])
+
+  return {
+    users: userRows.map((u) => ({
+      id:                 u.id,
+      firstName:          u.firstName,
+      lastName:           u.lastName,
+      email:              u.email,
+      roleId:             u.roleId,
+      roleName:           u.roleName ?? null,
+      active:             u.active,
+      mustChangePassword: u.mustChangePassword,
+      tempPassword:       u.tempPassword ?? null,
+    })),
+    roles: roleRows,
+  }
+}
+
+const UserCreateSchema = z.object({
+  firstName: z.string().min(1, 'Nome obbligatorio.').max(80),
+  lastName:  z.string().min(1, 'Cognome obbligatorio.').max(80),
+  email:     z.string().email('Email non valida.'),
+  roleId:    z.string().uuid().nullable().optional(),
+})
+
+export async function createUser(data: {
+  firstName: string; lastName: string; email: string; roleId?: string | null
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_USERS')
+
+    const parsed = UserCreateSchema.safeParse(data)
+    if (!parsed.success) return { ok: false, error: parsed.error.errors[0].message }
+
+    const tempPassword = generateTempPassword()
+    const passwordHash = await bcrypt.hash(tempPassword, 12)
+    const userEmail    = parsed.data.email.trim().toLowerCase()
+    const firstName    = parsed.data.firstName.trim()
+    const lastName     = parsed.data.lastName.trim()
+
+    const [row] = await db
+      .insert(users)
+      .values({
+        firstName,
+        lastName,
+        email:              userEmail,
+        passwordHash,
+        roleId:             parsed.data.roleId!,
+        active:             true,
+        mustChangePassword: true,
+        tempPassword,
+      })
+      .returning({ id: users.id })
+
+    // Invia email di benvenuto con la password temporanea (fire and forget)
+    sendWelcomeEmail({
+      userEmail,
+      userName: firstName + ' ' + lastName,
+      password: tempPassword,
+    })
+
+    revalidatePath('/admin/users')
+    return { ok: true, id: row.id }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Email già in uso.' }
+    console.error('createUser error:', err)
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updateUser(
+  id: string,
+  data: { firstName?: string; lastName?: string; email?: string; roleId?: string | null; active?: boolean; newPassword?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_USERS')
+
+    const set: Record<string, any> = {}
+    if (data.firstName)           set.firstName = data.firstName.trim()
+    if (data.lastName)            set.lastName  = data.lastName.trim()
+    if (data.email)               set.email     = data.email.trim().toLowerCase()
+    if (data.roleId !== undefined) set.roleId   = data.roleId
+    if (data.active !== undefined) set.active   = data.active
+    if (data.newPassword) {
+      if (data.newPassword.length < 8) return { ok: false, error: 'Password minimo 8 caratteri.' }
+      set.passwordHash = await bcrypt.hash(data.newPassword, 12)
+    }
+
+    await db.update(users).set(set).where(eq(users.id, id))
+    revalidatePath('/admin/users')
+    return { ok: true }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Email già in uso.' }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+// ─── RESET USER PASSWORD ──────────────────────────────────────────────────────
+
+function generateTempPassword(): string {
+  const upper   = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+  const lower   = 'abcdefghjkmnpqrstuvwxyz'
+  const digits  = '23456789'
+  const special = '!@#$%'
+  const all = upper + lower + digits + special
+  let pwd = upper[Math.floor(Math.random() * upper.length)]
+          + lower[Math.floor(Math.random() * lower.length)]
+          + digits[Math.floor(Math.random() * digits.length)]
+          + special[Math.floor(Math.random() * special.length)]
+  for (let i = 4; i < 12; i++) pwd += all[Math.floor(Math.random() * all.length)]
+  return pwd.split('').sort(() => Math.random() - 0.5).join('')
+}
+
+export async function resetUserPassword(
+  userId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_USERS')
+
+    const userRows = await db
+      .select({ email: users.email, firstName: users.firstName, lastName: users.lastName })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+
+    if (userRows.length === 0) return { ok: false, error: 'Utente non trovato.' }
+
+    const user = userRows[0]
+    const tempPassword = generateTempPassword()
+    const hash = await bcrypt.hash(tempPassword, 12)
+
+    await db
+      .update(users)
+      .set({ passwordHash: hash, mustChangePassword: true, tempPassword })
+      .where(eq(users.id, userId))
+
+    sendPasswordResetEmail({
+      userEmail: user.email,
+      userName:  user.firstName + ' ' + user.lastName,
+      password:  tempPassword,
+    })
+
+    revalidatePath('/admin/users')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    console.error('resetUserPassword error:', err)
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+// ─── ROLES & PROFILES ─────────────────────────────────────────────────────────
+
+export type ProfileRow = {
+  id:       string
+  name:     string
+  sections: SectionCode[]
+}
+
+export type RoleRow = {
+  id:       string
+  name:     string
+  profiles: { id: string; name: string }[]
+}
+
+export async function getRolesAndProfiles(): Promise<{ roles: RoleRow[]; profiles: ProfileRow[] }> {
+  const session = await auth()
+  requireSection(session, 'PARAM_ROLES')
+
+  const [roleRows, profileRows, rpRows, psRows] = await Promise.all([
+    db.select({ id: roles.id, name: roles.name }).from(roles).orderBy(roles.name),
+    db.select({ id: profiles.id, name: profiles.name }).from(profiles).orderBy(profiles.name),
+    db.select({ roleId: roleProfiles.roleId, profileId: roleProfiles.profileId }).from(roleProfiles),
+    db.select({ profileId: profileSections.profileId, sectionCode: profileSections.sectionCode }).from(profileSections),
+  ])
+
+  const sectionsByProfile = new Map<string, SectionCode[]>()
+  for (const ps of psRows) {
+    if (!sectionsByProfile.has(ps.profileId)) sectionsByProfile.set(ps.profileId, [])
+    sectionsByProfile.get(ps.profileId)!.push(ps.sectionCode as SectionCode)
+  }
+
+  const profilesByRole = new Map<string, { id: string; name: string }[]>()
+  for (const rp of rpRows) {
+    if (!profilesByRole.has(rp.roleId)) profilesByRole.set(rp.roleId, [])
+    const p = profileRows.find((x) => x.id === rp.profileId)
+    if (p) profilesByRole.get(rp.roleId)!.push(p)
+  }
+
+  return {
+    roles: roleRows.map((r) => ({
+      id:       r.id,
+      name:     r.name,
+      profiles: profilesByRole.get(r.id) ?? [],
+    })),
+    profiles: profileRows.map((p) => ({
+      id:       p.id,
+      name:     p.name,
+      sections: sectionsByProfile.get(p.id) ?? [],
+    })),
+  }
+}
+
+export async function createProfile(
+  data: { name: string; sections: SectionCode[] },
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ROLES')
+    if (!data.name.trim()) return { ok: false, error: 'Il nome è obbligatorio.' }
+
+    const [row] = await db.insert(profiles).values({ name: data.name.trim() }).returning({ id: profiles.id })
+
+    if (data.sections.length > 0) {
+      await db.insert(profileSections).values(data.sections.map((s) => ({ profileId: row.id, sectionCode: s })))
+    }
+
+    revalidatePath('/admin/roles')
+    return { ok: true, id: row.id }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updateProfile(
+  id: string,
+  data: { name?: string; sections?: SectionCode[] },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ROLES')
+
+    if (data.name) await db.update(profiles).set({ name: data.name.trim() }).where(eq(profiles.id, id))
+
+    if (data.sections !== undefined) {
+      await db.delete(profileSections).where(eq(profileSections.profileId, id))
+      if (data.sections.length > 0) {
+        await db.insert(profileSections).values(data.sections.map((s) => ({ profileId: id, sectionCode: s })))
+      }
+    }
+
+    revalidatePath('/admin/roles')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function createRole(
+  data: { name: string; profileIds: string[] },
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ROLES')
+    if (!data.name.trim()) return { ok: false, error: 'Il nome è obbligatorio.' }
+
+    const [row] = await db.insert(roles).values({ name: data.name.trim() }).returning({ id: roles.id })
+
+    if (data.profileIds.length > 0) {
+      await db.insert(roleProfiles).values(data.profileIds.map((p) => ({ roleId: row.id, profileId: p })))
+    }
+
+    revalidatePath('/admin/roles')
+    return { ok: true, id: row.id }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updateRole(
+  id: string,
+  data: { name?: string; profileIds?: string[] },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ROLES')
+
+    if (data.name) await db.update(roles).set({ name: data.name.trim() }).where(eq(roles.id, id))
+
+    if (data.profileIds !== undefined) {
+      await db.delete(roleProfiles).where(eq(roleProfiles.roleId, id))
+      if (data.profileIds.length > 0) {
+        await db.insert(roleProfiles).values(data.profileIds.map((p) => ({ roleId: id, profileId: p })))
+      }
+    }
+
+    revalidatePath('/admin/roles')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+// ─── ABSENCE TYPES ────────────────────────────────────────────────────────────
+
+export type AbsenceTypeRow = { id: string; code: string; label: string; active: boolean }
+
+export async function getAbsenceTypes(): Promise<AbsenceTypeRow[]> {
+  const session = await auth()
+  requireSection(session, 'PARAM_ABSENCES')
+  return db.select().from(absenceTypes).orderBy(absenceTypes.label)
+}
+
+export async function createAbsenceType(
+  data: { code: string; label: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ABSENCES')
+    if (!data.code.trim() || !data.label.trim()) return { ok: false, error: 'Codice e label obbligatori.' }
+
+    await db.insert(absenceTypes).values({ code: data.code.trim().toUpperCase(), label: data.label.trim(), active: true })
+    revalidatePath('/admin/absences')
+    return { ok: true }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Codice già in uso.' }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updateAbsenceType(
+  id: string,
+  data: { label?: string; active?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ABSENCES')
+    await db.update(absenceTypes).set(data).where(eq(absenceTypes.id, id))
+    revalidatePath('/admin/absences')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+// ─── EXPENSE CATEGORIES ───────────────────────────────────────────────────────
+
+export type ExpenseCategoryRow = {
+  id: string; code: string; label: string
+  requiresAttachment: boolean; isKmBased: boolean; active: boolean
+}
+export type VehicleTypeRow = { id: string; name: string; ratePerKm: string; active: boolean }
+
+export async function getExpenseCategoriesAndVehicles(): Promise<{
+  categories: ExpenseCategoryRow[]; vehicleTypes: VehicleTypeRow[]
+}> {
+  const session = await auth()
+  requireSection(session, 'PARAM_EXPENSE_CAT')
+
+  const [cats, vehs] = await Promise.all([
+    db.select().from(expenseCategories).orderBy(expenseCategories.label),
+    db.select().from(vehicleTypes).orderBy(vehicleTypes.name),
+  ])
+
+  return {
+    categories:   cats,
+    vehicleTypes: vehs.map((v) => ({ ...v, ratePerKm: v.ratePerKm })),
+  }
+}
+
+export async function createExpenseCategory(
+  data: { code: string; label: string; requiresAttachment: boolean; isKmBased: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_EXPENSE_CAT')
+    if (!data.code.trim() || !data.label.trim()) return { ok: false, error: 'Codice e label obbligatori.' }
+
+    await db.insert(expenseCategories).values({
+      code:               data.code.trim().toUpperCase(),
+      label:              data.label.trim(),
+      requiresAttachment: data.requiresAttachment,
+      isKmBased:          data.isKmBased,
+      active:             true,
+    })
+    revalidatePath('/admin/expense-categories')
+    return { ok: true }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Codice già in uso.' }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updateExpenseCategory(
+  id: string,
+  data: { label?: string; requiresAttachment?: boolean; isKmBased?: boolean; active?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_EXPENSE_CAT')
+    await db.update(expenseCategories).set(data).where(eq(expenseCategories.id, id))
+    revalidatePath('/admin/expense-categories')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function createVehicleType(
+  data: { name: string; ratePerKm: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_EXPENSE_CAT')
+    const rate = parseFloat(data.ratePerKm)
+    if (!data.name.trim() || isNaN(rate) || rate <= 0) return { ok: false, error: 'Nome e tariffa validi obbligatori.' }
+
+    await db.insert(vehicleTypes).values({ name: data.name.trim(), ratePerKm: rate.toFixed(4), active: true })
+    revalidatePath('/admin/expense-categories')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updateVehicleType(
+  id: string,
+  data: { name?: string; ratePerKm?: string; active?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_EXPENSE_CAT')
+    const set: Record<string, any> = {}
+    if (data.name)       set.name       = data.name.trim()
+    if (data.ratePerKm)  set.ratePerKm  = parseFloat(data.ratePerKm).toFixed(4)
+    if (data.active !== undefined) set.active = data.active
+
+    await db.update(vehicleTypes).set(set).where(eq(vehicleTypes.id, id))
+    revalidatePath('/admin/expense-categories')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+// ─── ENGAGEMENT TYPES ─────────────────────────────────────────────────────────
+
+export type EngagementTypeRow = { id: string; name: string; active: boolean }
+
+export async function getEngagementTypes(): Promise<EngagementTypeRow[]> {
+  const session = await auth()
+  requireSection(session, 'PARAM_ENGAGEMENTS')
+  return db.select().from(engagementTypes).orderBy(engagementTypes.name)
+}
+
+export async function createEngagementType(
+  data: { name: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ENGAGEMENTS')
+    if (!data.name.trim()) return { ok: false, error: 'Il nome è obbligatorio.' }
+
+    await db.insert(engagementTypes).values({ name: data.name.trim(), active: true })
+    revalidatePath('/admin/engagement-types')
+    return { ok: true }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Nome già in uso.' }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updateEngagementType(
+  id: string,
+  data: { name?: string; active?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ENGAGEMENTS')
+    await db.update(engagementTypes).set(data).where(eq(engagementTypes.id, id))
+    revalidatePath('/admin/engagement-types')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+// ─── HOLIDAYS ─────────────────────────────────────────────────────────────────
+
+export type HolidayRow = { id: string; date: string; name: string; isRecurring: boolean }
+
+export async function getHolidays(year?: number): Promise<HolidayRow[]> {
+  const session = await auth()
+  requireSection(session, 'PARAM_HOLIDAYS')
+
+  const rows = await db.select().from(italianHolidays).orderBy(italianHolidays.date)
+
+  return rows
+    .filter((r) => !year || r.date.startsWith(String(year)))
+    .map((r) => ({ id: r.id, date: r.date, name: r.name, isRecurring: r.isRecurring }))
+}
+
+export async function createHoliday(
+  data: { date: string; name: string; isRecurring: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_HOLIDAYS')
+    if (!data.date || !data.name.trim()) return { ok: false, error: 'Data e nome obbligatori.' }
+
+    await db.insert(italianHolidays).values({ date: data.date, name: data.name.trim(), isRecurring: data.isRecurring })
+    invalidateHolidayCache()
+    revalidatePath('/admin/holidays')
+    return { ok: true }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Questa data è già presente.' }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updateHoliday(
+  id: string,
+  data: { name?: string; isRecurring?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_HOLIDAYS')
+    await db.update(italianHolidays).set(data).where(eq(italianHolidays.id, id))
+    invalidateHolidayCache()
+    revalidatePath('/admin/holidays')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function deleteHoliday(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_HOLIDAYS')
+    await db.delete(italianHolidays).where(eq(italianHolidays.id, id))
+    invalidateHolidayCache()
+    revalidatePath('/admin/holidays')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
