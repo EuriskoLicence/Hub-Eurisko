@@ -1,6 +1,9 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy initialization — evita errori al build quando RESEND_API_KEY non è ancora disponibile
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY ?? 'missing')
+}
 
 const FROM    = process.env.RESEND_FROM  ?? 'noreply@example.com'
 const APP_URL = process.env.NEXTAUTH_URL        ?? 'http://localhost:3000'
@@ -105,7 +108,7 @@ export async function sendAmendmentRequestedEmail(params: {
     ${btn('Vai alle rettifiche', `${APP_URL}/finance/amendments`)}
   `
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from:    FROM,
     to:      financeEmail,
     subject: `[${APP_NAME}] Rettifica ${typeLabel} — ${params.userName} — ${monthLabel(params.year, params.month)}`,
@@ -153,7 +156,7 @@ export async function sendAmendmentReviewedEmail(params: {
     ${btn(`Vai alla ${typeLabel.toLowerCase()}`, detailHref)}
   `
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from:    FROM,
     to:      params.userEmail,
     subject: `[${APP_NAME}] Rettifica ${actionLabel} — ${typeLabel} ${monthLabel(params.year, params.month)}`,
@@ -183,7 +186,7 @@ export async function sendTimesheetReminderEmail(params: {
     ${btn('Vai alla consuntivazione', `${APP_URL}/timesheet`)}
   `
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from:    FROM,
     to:      params.userEmail,
     subject: `[${APP_NAME}] Sollecito: consuntivazione ${monthLabel(params.year, params.month)} non inviata`,
@@ -218,7 +221,7 @@ export async function sendWelcomeEmail(params: {
     </div>
     ${btn('Accedi al portale', APP_URL)}
   `
-  await resend.emails.send({
+  await getResend().emails.send({
     from:    FROM,
     to:      params.userEmail,
     subject: `[${APP_NAME}] Benvenuto — le tue credenziali di accesso`,
@@ -253,7 +256,7 @@ export async function sendPasswordResetEmail(params: {
     </div>
     ${btn('Accedi al portale', APP_URL)}
   `
-  await resend.emails.send({
+  await getResend().emails.send({
     from:    FROM,
     to:      params.userEmail,
     subject: `[${APP_NAME}] Password reimpostata`,
