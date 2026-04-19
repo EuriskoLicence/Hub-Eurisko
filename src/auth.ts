@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { db } from '@/db'
 import { users, roles, roleProfiles, profiles, profileSections } from '@/db/schema'
 import type { SectionCode } from '@/lib/permissions/sections'
+import { authConfig } from './auth.config'
 
 // ─── Validazione credenziali ──────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ async function getUserWithSections(email: string) {
 // ─── NextAuth v5 — configurazione ────────────────────────────────────────────
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -96,46 +98,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
 
-  session: {
-    strategy: 'jwt',
-    maxAge:   8 * 60 * 60, // 8 ore
-  },
-
-  callbacks: {
-    // Persiste i campi custom nel token JWT
-    jwt({ token, user, trigger, session }) {
-      if (user) {
-        // Chiamato solo al primo login; user è l'oggetto restituito da authorize()
-        token.id                 = user.id
-        token.firstName          = user.firstName
-        token.lastName           = user.lastName
-        token.roleId             = user.roleId
-        token.roleName           = user.roleName
-        token.sections           = user.sections
-        token.mustChangePassword = user.mustChangePassword
-      }
-      // Permette di aggiornare mustChangePassword tramite useSession().update()
-      if (trigger === 'update' && session?.mustChangePassword === false) {
-        token.mustChangePassword = false
-      }
-      return token
-    },
-
-    // Espone i campi dal JWT alla sessione lato client/server
-    session({ session, token }) {
-      session.user.id                 = token.id as string
-      session.user.firstName          = token.firstName as string
-      session.user.lastName           = token.lastName as string
-      session.user.roleId             = token.roleId as string
-      session.user.roleName           = token.roleName as string
-      session.user.sections           = token.sections as SectionCode[]
-      session.user.mustChangePassword = token.mustChangePassword as boolean ?? false
-      return session
-    },
-  },
-
-  pages: {
-    signIn: '/login',
-    error:  '/login',
-  },
 })
