@@ -189,7 +189,7 @@ export async function sendTimesheetReminderEmail(params: {
   await getResend().emails.send({
     from:    FROM,
     to:      params.userEmail,
-    subject: `[${APP_NAME}] Sollecito: consuntivazione ${monthLabel(params.year, params.month)} non inviata`,
+    subject: `⏰ Sollecito: consuntivazione ${monthLabel(params.year, params.month)} non ancora inviata`,
     html:    layout('Sollecito consuntivazione', body),
   }).catch((err) => console.error('sendTimesheetReminderEmail error:', err))
 }
