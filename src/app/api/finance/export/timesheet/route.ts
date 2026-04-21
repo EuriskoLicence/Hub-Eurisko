@@ -47,8 +47,9 @@ export async function GET(req: NextRequest) {
         userId:           timesheetEntries.userId,
         day:              timesheetEntries.day,
         hours:            timesheetEntries.hours,
-        absenceTypeId:    timesheetEntries.absenceTypeId,
-        absenceTypeLabel: absenceTypes.label,
+        absenceTypeId:        timesheetEntries.absenceTypeId,
+        absenceTypeLabel:     absenceTypes.label,
+        absenceTypeShortCode: absenceTypes.shortCode,
       })
       .from(timesheetEntries)
       .innerJoin(absenceTypes, eq(timesheetEntries.absenceTypeId, absenceTypes.id))
@@ -84,6 +85,7 @@ export async function GET(req: NextRequest) {
       'Periodo',
       'Cognome e Nome',
       'Data',
+      'Cod.',
       'Voce assenza',
       'Ore',
     ]
@@ -103,6 +105,7 @@ export async function GET(req: NextRequest) {
           periodLabel,
           userMap.get(e.userId) ?? '',
           `${dd}/${mm}/${year}`,
+          e.absenceTypeShortCode ?? '',
           e.absenceTypeLabel ?? '',
           e.hours,
         ]
@@ -123,9 +126,10 @@ export async function GET(req: NextRequest) {
     ws['!cols'] = [
       { wch: 16 }, // Periodo
       { wch: 28 }, // Cognome e Nome
-      { wch: 8  }, // Giorno
+      { wch: 12 }, // Data
+      { wch: 6  }, // Cod.
       { wch: 24 }, // Voce assenza
-      { wch: 8  }, // Ore
+      { wch: 6  }, // Ore
     ]
 
     const label = `${IT_MONTHS[month - 1]}_${year}`
