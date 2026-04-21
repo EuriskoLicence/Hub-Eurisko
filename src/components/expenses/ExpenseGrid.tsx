@@ -194,6 +194,41 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
     })
   }
 
+  // ── Auto-save dopo upload/rimozione allegato ──────────────────────────────
+
+  function autoSaveWithRows(updatedRows: ExpenseRowState[]) {
+    startTransition(async () => {
+      const res = await saveExpenseLines(reportId, year, month, rowsToSaveLines(updatedRows))
+      if (res.ok) {
+        setReportId(res.reportId)
+        push('Allegato salvato.')
+        router.refresh()
+      } else {
+        push(res.error, 'error')
+      }
+    })
+  }
+
+  function handleSetAttachment(rowIdx: number, day: number, key: string, filename: string) {
+    const updatedRows = rows.map((row, i) => {
+      if (i !== rowIdx) return row
+      const cell = { ...(row.cells[day] ?? emptyCell()), attachmentKey: key, attachmentFilename: filename }
+      return { ...row, cells: { ...row.cells, [day]: cell } }
+    })
+    setRows(updatedRows)
+    autoSaveWithRows(updatedRows)
+  }
+
+  function handleRemoveAttachment(rowIdx: number, day: number) {
+    const updatedRows = rows.map((row, i) => {
+      if (i !== rowIdx) return row
+      const cell = { ...(row.cells[day] ?? emptyCell()), attachmentKey: null, attachmentFilename: null }
+      return { ...row, cells: { ...row.cells, [day]: cell } }
+    })
+    setRows(updatedRows)
+    autoSaveWithRows(updatedRows)
+  }
+
   function removeRow(rowIdx: number) {
     setRows((prev) => prev.filter((_, i) => i !== rowIdx))
   }
@@ -454,8 +489,8 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
                   isPending={isPending}
                   onUpdateCell={updateCell}
                   onClearCell={clearCell}
-                  onSetAttachment={setAttachment}
-                  onRemoveAttachment={removeAttachment}
+                  onSetAttachment={handleSetAttachment}
+                  onRemoveAttachment={handleRemoveAttachment}
                   onRemoveRow={removeRow}
                 />
               ))}
@@ -509,8 +544,8 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
             isPending={isPending}
             onUpdateCell={updateCell}
             onClearCell={clearCell}
-            onSetAttachment={setAttachment}
-            onRemoveAttachment={removeAttachment}
+            onSetAttachment={handleSetAttachment}
+            onRemoveAttachment={handleRemoveAttachment}
             onRemoveRow={removeRow}
           />
         ))}
