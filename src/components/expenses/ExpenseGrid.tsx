@@ -960,7 +960,7 @@ function MobileRowCard({ row, rowIdx, workDays, isReadOnly, isPending, year, mon
                           if (isNaN(val) || val === 0) onClearCell(rowIdx, d.dayOfMonth)
                           else onUpdateCell(rowIdx, d.dayOfMonth, { kmDistance: val.toString() })
                         }}
-                        className="w-full rounded border border-gray-200 px-2 py-1 text-sm text-right
+                        className="w-full rounded border border-gray-200 px-2 py-1 text-base text-right
                                    focus:outline-none focus:border-blue-400"
                       />
                     )
@@ -981,7 +981,7 @@ function MobileRowCard({ row, rowIdx, workDays, isReadOnly, isPending, year, mon
                             if (isNaN(val) || val === 0) { onClearCell(rowIdx, d.dayOfMonth); return }
                             onUpdateCell(rowIdx, d.dayOfMonth, { amount: val.toFixed(2) })
                           }}
-                          className="w-full rounded border border-gray-200 px-2 py-1 text-sm text-right
+                          className="w-full rounded border border-gray-200 px-2 py-1 text-base text-right
                                      focus:outline-none focus:border-blue-400"
                         />
                         {ATTACHMENTS_ENABLED && cell && eur > 0 && (
@@ -1046,7 +1046,7 @@ function AddRowDropdown({ categories, engagements, vehicleTypes, existingLocalId
         <select
           value={selectedCat}
           onChange={(e) => { setSelectedCat(e.target.value); setSelectedVeh('') }}
-          className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm
+          className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-base
                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="">Seleziona…</option>
@@ -1065,7 +1065,7 @@ function AddRowDropdown({ categories, engagements, vehicleTypes, existingLocalId
             value={selectedEng}
             onChange={(e) => setSelectedEng(e.target.value)}
             className={cn(
-              'w-full rounded-lg border px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
+              'w-full rounded-lg border px-2.5 py-1.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
               !selectedEng ? 'border-red-300 bg-red-50' : 'border-gray-300',
             )}
           >

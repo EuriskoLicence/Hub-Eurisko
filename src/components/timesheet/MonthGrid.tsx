@@ -505,7 +505,7 @@ function DesktopGrid({
                         value={h ?? ''}
                         onChange={(e) => onCellChange(ri, d.dayOfMonth, e.target.value)}
                         className={cn(
-                          'w-10 rounded border px-1 py-0.5 text-center text-xs',
+                          'w-10 rounded border px-1 py-0.5 text-center text-base md:text-xs',
                           'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400',
                           '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none',
                           isOff ? 'border-gray-300 bg-gray-50 text-gray-500' : 'border-gray-200',
@@ -669,7 +669,7 @@ function MobileView({
                       max={24}
                       value={row.hours[d.dayOfMonth] ?? ''}
                       onChange={(e) => onCellChange(ri, d.dayOfMonth, e.target.value)}
-                      className="w-14 rounded border border-gray-300 px-2 py-1 text-center text-sm
+                      className="w-14 rounded border border-gray-300 px-2 py-1 text-center text-base md:text-sm
                                  focus:outline-none focus:ring-2 focus:ring-blue-400
                                  [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                     />
