@@ -212,15 +212,15 @@ async function seed() {
   console.log('5/14 · Voci di assenza...')
 
   const ABSENCE_TYPES = [
-    { code: 'FERIE',    label: 'Ferie' },
-    { code: 'MALATTIA', label: 'Malattia' },
-    { code: 'PERMESSO', label: 'Permesso' },
-    { code: 'ROL',      label: 'ROL (Riduzione Orario Lavoro)' },
-    { code: 'LUTTO',    label: 'Lutto' },
+    { label: 'Ferie' },
+    { label: 'Malattia' },
+    { label: 'Permesso' },
+    { label: 'ROL (Riduzione Orario Lavoro)' },
+    { label: 'Lutto' },
   ]
 
   for (const a of ABSENCE_TYPES) {
-    await db.insert(absenceTypes).values({ code: a.code, label: a.label }).onConflictDoNothing()
+    await db.insert(absenceTypes).values({ label: a.label }).onConflictDoNothing()
   }
   console.log(`     ✓ ${ABSENCE_TYPES.length} voci di assenza inserite`)
 

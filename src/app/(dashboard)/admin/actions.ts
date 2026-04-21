@@ -380,12 +380,7 @@ export async function createAbsenceType(
     const sc = data.shortCode.trim().toUpperCase()
     if (!SHORT_CODE_RE.test(sc)) return { ok: false, error: 'La codifica deve essere esattamente 2 caratteri alfanumerici (A-Z, 0-9).' }
 
-    // Genera code interno univoco dal label (max 20 chars, uppercase, no spazi)
-    const baseCode = data.label.trim().toUpperCase().replace(/\s+/g, '_').slice(0, 20)
-    const code = `${baseCode}_${sc}`
-
     await db.insert(absenceTypes).values({
-      code,
       shortCode: sc,
       label:     data.label.trim(),
       active:    true,
@@ -394,7 +389,7 @@ export async function createAbsenceType(
     return { ok: true }
   } catch (err: any) {
     if (err instanceof HttpError) return { ok: false, error: err.message }
-    if (err.code === '23505') return { ok: false, error: 'Esiste già una voce con questa combinazione. Prova una label o codifica diversa.' }
+    if ((err as any).code === '23505') return { ok: false, error: 'Esiste già una voce con questa label. Prova una label diversa.' }
     return { ok: false, error: 'Errore del server.' }
   }
 }
