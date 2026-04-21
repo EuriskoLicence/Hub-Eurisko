@@ -389,7 +389,7 @@ export async function createAbsenceType(
     return { ok: true }
   } catch (err: any) {
     if (err instanceof HttpError) return { ok: false, error: err.message }
-    if ((err as any).code === '23505') return { ok: false, error: 'Esiste già una voce con questa label. Prova una label diversa.' }
+    if ((err as any).code === '23505') return { ok: false, error: 'Codifica breve già in uso. Scegli una codifica diversa.' }
     return { ok: false, error: 'Errore del server.' }
   }
 }
@@ -410,8 +410,9 @@ export async function updateAbsenceType(
     await db.update(absenceTypes).set(payload).where(eq(absenceTypes.id, id))
     revalidatePath('/admin/absences')
     return { ok: true }
-  } catch (err) {
+  } catch (err: any) {
     if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Codifica breve già in uso. Scegli una codifica diversa.' }
     return { ok: false, error: 'Errore del server.' }
   }
 }

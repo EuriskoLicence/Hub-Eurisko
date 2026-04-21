@@ -167,7 +167,7 @@ export const italianHolidays = pgTable('italian_holidays', {
 
 export const absenceTypes = pgTable('absence_types', {
   id:        uuid('id').primaryKey().defaultRandom(),
-  shortCode: text('short_code'),   // codifica 2 caratteri alfanumerici, es. "FE"
+  shortCode: text('short_code').unique(),  // codifica 2 caratteri alfanumerici, es. "FE"
   label:     text('label').notNull(),
   active:    boolean('active').notNull().default(true),
 })
