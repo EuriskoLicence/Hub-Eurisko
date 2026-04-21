@@ -147,7 +147,7 @@ export async function getFinanceTimesheetView(
     monthStatus,
     entries:        entryRecords,
     engagements:    engRows,
-    absences:       absRows.map((a) => ({ id: a.id, code: a.code, label: a.label })),
+    absences:       absRows.map((a) => ({ id: a.id, shortCode: a.shortCode, label: a.label })),
     calendar,
     targetUserName,
   }

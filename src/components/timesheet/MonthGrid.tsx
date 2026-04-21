@@ -47,7 +47,7 @@ function buildInitialRows(data: TimesheetPageData): GridRow[] {
           type:     'absence',
           id:       entry.absenceTypeId,
           label:    abs?.label ?? 'Assenza sconosciuta',
-          sublabel: abs?.code ?? '',
+          sublabel: abs?.shortCode ?? '',
           hours:    {},
         })
       }
@@ -195,7 +195,7 @@ export function MonthGrid({
     } else {
       const abs = absences.find((a) => a.id === id)
       label    = abs?.label ?? ''
-      sublabel = abs?.code  ?? ''
+      sublabel = abs?.shortCode ?? ''
     }
 
     setRows((prev) => [...prev, { type, id, label, sublabel, hours: {} }])
@@ -741,7 +741,7 @@ function AddRowDropdown({
               className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors"
             >
               <span className="font-medium text-gray-900">{a.label}</span>
-              <span className="ml-2 text-xs text-gray-400">{a.code}</span>
+              {a.shortCode && <span className="ml-2 text-xs text-gray-400">{a.shortCode}</span>}
             </button>
           ))}
         </>
@@ -785,7 +785,7 @@ function AddRowMobile({
             <button key={a.id} onClick={() => { onSelect('absence', a.id); setOpen(false) }}
               className="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 border-b border-gray-100">
               <span className="font-medium">{a.label}</span>
-              <span className="ml-2 text-xs text-gray-400">{a.code}</span>
+              {a.shortCode && <span className="ml-2 text-xs text-gray-400">{a.shortCode}</span>}
             </button>
           ))}
         </div>

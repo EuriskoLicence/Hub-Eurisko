@@ -35,10 +35,7 @@ export function SimpleListClient({ type, items }: Props) {
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               {type === 'absences' && (
-                <>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Codice</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-20">Cod. breve</th>
-                </>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 w-24">Cod. breve</th>
               )}
               <th className="text-left px-4 py-3 font-medium text-gray-600">Label</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Attivo</th>
@@ -56,15 +53,12 @@ export function SimpleListClient({ type, items }: Props) {
             {items.map((item) => (
               <tr key={item.id} className="hover:bg-gray-50">
                 {type === 'absences' && (
-                  <>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{item.code}</td>
-                    <td className="px-4 py-3">
-                      {item.shortCode
-                        ? <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-700">{item.shortCode}</span>
-                        : <span className="text-xs text-red-400 italic">mancante</span>
-                      }
-                    </td>
-                  </>
+                  <td className="px-4 py-3">
+                    {item.shortCode
+                      ? <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-700">{item.shortCode}</span>
+                      : <span className="text-xs text-red-400 italic">mancante</span>
+                    }
+                  </td>
                 )}
                 <td className="px-4 py-3 text-gray-900">{item.label}</td>
                 <td className="px-4 py-3 text-center">
@@ -99,7 +93,6 @@ export function SimpleListClient({ type, items }: Props) {
 function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: () => void }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [code,      setCode]      = useState(item?.code      ?? '')
   const [shortCode, setShortCode] = useState(item?.shortCode ?? '')
   const [label,     setLabel]     = useState(item?.label     ?? '')
   const [active,    setActive]    = useState(item?.active    ?? true)
@@ -113,7 +106,7 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
       if (type === 'absences') {
         res = item
           ? await updateAbsenceType(item.id, { shortCode, label, active })
-          : await createAbsenceType({ code, shortCode, label })
+          : await createAbsenceType({ shortCode, label })
       } else {
         res = item
           ? await updateEngagementType(item.id, { name: label, active })
@@ -137,18 +130,6 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           {error && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</div>}
-
-          {/* Codice (solo creazione assenze) */}
-          {type === 'absences' && !item && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Codice *</label>
-              <input type="text" value={code}
-                onChange={(e) => { setCode(e.target.value.toUpperCase()); setError('') }}
-                placeholder="es. FERIE"
-                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono
-                           focus:outline-none focus:ring-2 focus:ring-gray-500" />
-            </div>
-          )}
 
           {/* Codice breve — sempre visibile per assenze */}
           {type === 'absences' && (

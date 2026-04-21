@@ -24,9 +24,9 @@ export type EngagementOption = {
 }
 
 export type AbsenceOption = {
-  id:    string
-  code:  string
-  label: string
+  id:        string
+  shortCode: string | null
+  label:     string
 }
 
 /** Giorno del calendario serializzato (senza oggetti Date, passabile server→client) */
