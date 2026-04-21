@@ -5,4 +5,4 @@
  */
 
 /** Abilita la gestione degli allegati nelle note spese (richiede Cloudflare R2 configurato) */
-export const ATTACHMENTS_ENABLED = false
+export const ATTACHMENTS_ENABLED = true
