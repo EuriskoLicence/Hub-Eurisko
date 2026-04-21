@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Save, SendHorizonal, AlertTriangle, ChevronRight, X } from 'lucide-react'
+import { Plus, Save, SendHorizonal, AlertTriangle, ChevronRight, X, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatusBadge } from './StatusBadge'
 import { HolidayBadge } from './HolidayBadge'
@@ -187,7 +187,15 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
       {/* ─── Intestazione ────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            <a
+              href="/timesheet-extra"
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Indietro
+            </a>
+            <div className="h-4 w-px bg-gray-200 hidden sm:block" />
             <h1 className="text-xl font-bold text-gray-900">
               {IT_MONTHS[month - 1]} {year}
             </h1>

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Save, SendHorizonal, AlertTriangle, ChevronDown, ChevronRight, X } from 'lucide-react'
+import { Plus, Save, SendHorizonal, AlertTriangle, ChevronDown, ChevronRight, X, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatusBadge } from './StatusBadge'
 import { HolidayBadge } from './HolidayBadge'
@@ -242,13 +242,21 @@ export function MonthGrid({
       {/* ─── Intestazione ────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            <a
+              href="/timesheet"
+              className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Indietro
+            </a>
+            <div className="h-4 w-px bg-gray-200 hidden sm:block" />
             <h1 className="text-xl font-bold text-gray-900">
               {IT_MONTHS[month - 1]} {year}
             </h1>
             <StatusBadge status={currentStatus === 'draft' && !monthStatus ? 'not_started' : currentStatus} />
           </div>
-          <nav className="mt-1 text-xs text-gray-400">
+          <nav className="mt-1 text-xs text-gray-400 ml-0">
             <a href="/timesheet" className="hover:text-gray-600">Consuntivazione</a>
             {' / '}
             <span className="text-gray-600">{IT_MONTHS[month - 1]} {year}</span>
