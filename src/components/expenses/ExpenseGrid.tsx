@@ -8,10 +8,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AttachmentButton } from './AttachmentButton'
-
-// ─── Feature flag allegati ────────────────────────────────────────────────────
-// Impostare a `true` per riabilitare la gestione degli allegati nell'UI.
-const ATTACHMENTS_ENABLED = false
+import { ATTACHMENTS_ENABLED } from '@/lib/features'
 
 import {
   saveExpenseLines,

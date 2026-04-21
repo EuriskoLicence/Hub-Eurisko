@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
+import { ATTACHMENTS_ENABLED } from '@/lib/features'
 import {
   expenseReports, expenseLines, expenseCategories,
   engagementUsers, engagements, projects, clients,
@@ -314,7 +315,6 @@ export async function submitExpenseReport(
     }
 
     // Verifica allegati obbligatori (solo se la funzionalità allegati è abilitata)
-    const ATTACHMENTS_ENABLED = false
     if (ATTACHMENTS_ENABLED) {
       const missingCheck = await db
         .select({ attachmentKey: expenseLines.attachmentKey, description: expenseLines.description })
