@@ -570,7 +570,7 @@ function MobileView({
   totals:        Record<number, number>
   isEditable:    boolean
   engagements:   { id: string; name: string; code: string; clientName: string }[]
-  absences:      { id: string; code: string; label: string }[]
+  absences:      { id: string; shortCode: string | null; label: string }[]
   onCellChange:  (rowIdx: number, day: number, value: string) => void
   onFillDefault: (rowIdx: number) => void
   onRemoveRow:   (rowIdx: number) => void
@@ -705,7 +705,7 @@ function AddRowDropdown({
   engagements, absences, onSelect, onClose,
 }: {
   engagements: { id: string; name: string; code: string; clientName: string }[]
-  absences:    { id: string; code: string; label: string }[]
+  absences:    { id: string; shortCode: string | null; label: string }[]
   onSelect:    (type: 'engagement' | 'absence', id: string) => void
   onClose:     () => void
 }) {
@@ -757,7 +757,7 @@ function AddRowMobile({
   engagements, absences, onSelect,
 }: {
   engagements: { id: string; name: string; code: string; clientName: string }[]
-  absences:    { id: string; code: string; label: string }[]
+  absences:    { id: string; shortCode: string | null; label: string }[]
   onSelect:    (type: 'engagement' | 'absence', id: string) => void
 }) {
   const [open, setOpen] = useState(false)
