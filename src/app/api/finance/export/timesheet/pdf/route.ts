@@ -51,7 +51,8 @@ export async function GET(req: NextRequest) {
         userId:           timesheetEntries.userId,
         day:              timesheetEntries.day,
         hours:            timesheetEntries.hours,
-        absenceTypeLabel: absenceTypes.label,
+        absenceTypeLabel:     absenceTypes.label,
+        absenceTypeShortCode: absenceTypes.shortCode,
       })
       .from(timesheetEntries)
       .innerJoin(absenceTypes, eq(timesheetEntries.absenceTypeId, absenceTypes.id))
@@ -71,17 +72,18 @@ export async function GET(req: NextRequest) {
       .map((e) => {
         const dd = String(e.day).padStart(2, '0')
         const mm = String(month).padStart(2, '0')
-        return [periodLabel, userNameMap.get(e.userId) ?? '', `${dd}/${mm}/${year}`, e.absenceTypeLabel ?? '', e.hours]
+        return [periodLabel, userNameMap.get(e.userId) ?? '', `${dd}/${mm}/${year}`, e.absenceTypeShortCode ?? '', e.absenceTypeLabel ?? '', e.hours]
       })
 
     const buffer = await generatePdfTable({
       title:   `Assenze — ${periodLabel}`,
       columns: [
-        { header: 'Periodo',       width: 80  },
-        { header: 'Cognome e Nome', width: 150 },
-        { header: 'Data',          width: 70  },
-        { header: 'Voce assenza',  width: 130 },
-        { header: 'Ore',           width: 40, align: 'right' },
+        { header: 'Periodo',        width: 80  },
+        { header: 'Cognome e Nome', width: 140 },
+        { header: 'Data',           width: 65  },
+        { header: 'Cod.',           width: 30  },
+        { header: 'Voce assenza',   width: 120 },
+        { header: 'Ore',            width: 35, align: 'right' },
       ],
       rows,
     })
