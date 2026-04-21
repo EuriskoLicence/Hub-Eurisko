@@ -572,6 +572,15 @@ function MobileView({
 
   return (
     <div className="space-y-2">
+      {/* Aggiungi riga (mobile) — in cima */}
+      {isEditable && (
+        <AddRowMobile
+          engagements={engagements.filter((e) => !rows.some((r) => r.type === 'engagement' && r.id === e.id))}
+          absences={absences.filter((a) => !rows.some((r) => r.type === 'absence' && r.id === a.id))}
+          onSelect={onAddRow}
+        />
+      )}
+
       {calendar.map((d) => {
         const isOff   = d.isWeekend || d.isHoliday
         const total   = totals[d.dayOfMonth] ?? 0
@@ -678,14 +687,6 @@ function MobileView({
         )
       })}
 
-      {/* Aggiungi riga (mobile) */}
-      {isEditable && (
-        <AddRowMobile
-          engagements={engagements.filter((e) => !rows.some((r) => r.type === 'engagement' && r.id === e.id))}
-          absences={absences.filter((a) => !rows.some((r) => r.type === 'absence' && r.id === a.id))}
-          onSelect={onAddRow}
-        />
-      )}
     </div>
   )
 }
