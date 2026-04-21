@@ -4,6 +4,20 @@ import { useRef, useState } from 'react'
 import { Paperclip, CheckCircle2, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from '@/lib/r2'
+import imageCompression from 'browser-image-compression'
+
+const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+/** Comprime le immagini prima dell'upload; i PDF vengono lasciati invariati */
+async function prepareFile(file: File): Promise<File> {
+  if (!IMAGE_MIME_TYPES.includes(file.type)) return file
+  return imageCompression(file, {
+    maxSizeMB:           1,      // max 1MB dopo compressione
+    maxWidthOrHeight:    1920,   // max 1920px su lato lungo
+    useWebWorker:        true,
+    fileType:            file.type as any,
+  })
+}
 
 type Props = {
   attachmentKey:      string | null
@@ -43,17 +57,20 @@ export function AttachmentButton({
       return
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setError('File troppo grande (max 10 MB).')
+      setError(`File troppo grande (${(file.size / 1024 / 1024).toFixed(1)} MB). Il limite massimo è 10 MB.`)
       return
     }
 
     setUploading(true)
     try {
-      // 1. Richiede presigned PUT URL
+      // 1. Comprimi se immagine
+      const fileToUpload = await prepareFile(file)
+
+      // 2. Richiede presigned PUT URL
       const res = await fetch('/api/upload/presigned-url', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ filename: file.name, contentType: file.type }),
+        body:    JSON.stringify({ filename: file.name, contentType: fileToUpload.type }),
       })
 
       if (!res.ok) {
@@ -63,11 +80,11 @@ export function AttachmentButton({
 
       const { url, key } = await res.json()
 
-      // 2. Upload diretto su R2
+      // 3. Upload diretto su R2
       const uploadRes = await fetch(url, {
         method:  'PUT',
-        headers: { 'Content-Type': file.type },
-        body:    file,
+        headers: { 'Content-Type': fileToUpload.type },
+        body:    fileToUpload,
       })
 
       if (!uploadRes.ok) throw new Error('Upload fallito. Riprova.')
@@ -129,7 +146,7 @@ export function AttachmentButton({
         ) : uploading ? (
           <span className="flex items-center gap-1 text-[11px] text-blue-600">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Upload…
+            Caricamento…
           </span>
         ) : (
           !disabled && (
