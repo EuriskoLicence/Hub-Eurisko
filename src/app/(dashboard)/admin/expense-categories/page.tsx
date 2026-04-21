@@ -4,6 +4,7 @@ import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getExpenseCategoriesAndVehicles } from '../actions'
 import { ExpenseCatClient } from '@/components/admin/ExpenseCatClient'
 import { Tag, PaperclipIcon } from 'lucide-react'
+import { ATTACHMENTS_ENABLED } from '@/lib/features'
 
 export const metadata = { title: 'Categorie spese' }
 
@@ -26,15 +27,17 @@ export default async function AdminExpenseCatPage() {
       </div>
 
       {/* Banner: allegati disabilitati */}
-      <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-        <PaperclipIcon className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-        <p className="text-sm text-amber-700">
-          <span className="font-semibold">Gestione allegati disabilitata.</span>{' '}
-          Le impostazioni "Allegato obbligatorio" e "Allegato facoltativo" sono configurabili ma al momento
-          la funzionalità di caricamento allegati nelle note spese è disattivata.
-          Per riattivarla contattare il team tecnico.
-        </p>
-      </div>
+      {!ATTACHMENTS_ENABLED && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <PaperclipIcon className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <p className="text-sm text-amber-700">
+            <span className="font-semibold">Gestione allegati disabilitata.</span>{' '}
+            Le impostazioni "Allegato obbligatorio" e "Allegato facoltativo" sono configurabili ma al momento
+            la funzionalità di caricamento allegati nelle note spese è disattivata.
+            Per riattivarla contattare il team tecnico.
+          </p>
+        </div>
+      )}
 
       <ExpenseCatClient categories={categories} vehicleTypes={vehicleTypes} />
     </div>
