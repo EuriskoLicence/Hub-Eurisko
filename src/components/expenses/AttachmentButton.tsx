@@ -24,6 +24,8 @@ type Props = {
   attachmentFilename: string | null
   requiresAttachment: boolean
   disabled?:          boolean
+  year:               number
+  month:              number
   onUploaded: (key: string, filename: string) => void
   onRemoved:  () => void
 }
@@ -37,6 +39,8 @@ export function AttachmentButton({
   attachmentFilename,
   requiresAttachment,
   disabled,
+  year,
+  month,
   onUploaded,
   onRemoved,
 }: Props) {
@@ -71,7 +75,7 @@ export function AttachmentButton({
       const res = await fetch('/api/upload/presigned-url', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ filename: file.name, contentType: fileToUpload.type }),
+        body:    JSON.stringify({ filename: file.name, contentType: fileToUpload.type, year, month }),
       })
 
       if (!res.ok) {

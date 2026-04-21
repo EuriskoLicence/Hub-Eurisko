@@ -7,6 +7,8 @@ import { getPresignedPutUrl, ALLOWED_MIME_TYPES } from '@/lib/r2'
 const schema = z.object({
   filename:    z.string().min(1).max(255),
   contentType: z.enum(ALLOWED_MIME_TYPES),
+  year:        z.number().int().min(2020).max(2100),
+  month:       z.number().int().min(1).max(12),
 })
 
 // Rate limiting semplice in memoria (max 20 req/min per IP)
@@ -47,13 +49,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tipo file non supportato o nome file mancante.' }, { status: 400 })
   }
 
-  const { filename, contentType } = parsed.data
-  const ext = filename.split('.').pop()?.toLowerCase() ?? 'bin'
+  const { filename, contentType, year, month } = parsed.data
+  const ext  = filename.split('.').pop()?.toLowerCase() ?? 'bin'
   // Chiave: expenses/{userId}/{anno}/{mese}/{uuid}.{ext}
-  const now   = new Date()
-  const anno  = now.getFullYear()
-  const mese  = String(now.getMonth() + 1).padStart(2, '0')
-  const key   = `expenses/${session.user.id}/${anno}/${mese}/${randomUUID()}.${ext}`
+  // anno e mese vengono dal client (mese della nota spese, non data odierna)
+  const mese = String(month).padStart(2, '0')
+  const key  = `expenses/${session.user.id}/${year}/${mese}/${randomUUID()}.${ext}`
 
   const url = await getPresignedPutUrl(key, contentType)
   return NextResponse.json({ url, key })

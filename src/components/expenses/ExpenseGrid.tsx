@@ -487,6 +487,8 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
                   workDays={workDays}
                   isReadOnly={isReadOnly}
                   isPending={isPending}
+                  year={year}
+                  month={month}
                   onUpdateCell={updateCell}
                   onClearCell={clearCell}
                   onSetAttachment={handleSetAttachment}
@@ -542,6 +544,8 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
             workDays={workDays}
             isReadOnly={isReadOnly}
             isPending={isPending}
+            year={year}
+            month={month}
             onUpdateCell={updateCell}
             onClearCell={clearCell}
             onSetAttachment={handleSetAttachment}
@@ -663,6 +667,8 @@ type RowProps = {
   workDays:           CalendarDaySerialized[]
   isReadOnly:         boolean
   isPending:          boolean
+  year:               number
+  month:              number
   onUpdateCell:       (rowIdx: number, day: number, patch: Partial<CellData>) => void
   onClearCell:        (rowIdx: number, day: number) => void
   onSetAttachment:    (rowIdx: number, day: number, key: string, filename: string) => void
@@ -671,7 +677,7 @@ type RowProps = {
 }
 
 function DesktopRow({
-  row, rowIdx, workDays, isReadOnly, isPending,
+  row, rowIdx, workDays, isReadOnly, isPending, year, month,
   onUpdateCell, onClearCell, onSetAttachment, onRemoveAttachment, onRemoveRow,
 }: RowProps) {
   const total = rowTotal(row)
@@ -705,6 +711,8 @@ function DesktopRow({
                 isReadOnly={isReadOnly}
                 isPending={isPending}
                 row={row}
+                year={year}
+                month={month}
                 onUpdateCell={onUpdateCell}
                 onClearCell={onClearCell}
                 onSetAttachment={onSetAttachment}
@@ -718,6 +726,8 @@ function DesktopRow({
                 isReadOnly={isReadOnly}
                 isPending={isPending}
                 row={row}
+                year={year}
+                month={month}
                 onUpdateCell={onUpdateCell}
                 onClearCell={onClearCell}
                 onSetAttachment={onSetAttachment}
@@ -760,13 +770,15 @@ type CellProps = {
   isReadOnly:         boolean
   isPending:          boolean
   row:                ExpenseRowState
+  year:               number
+  month:              number
   onUpdateCell:       (rowIdx: number, day: number, patch: Partial<CellData>) => void
   onClearCell:        (rowIdx: number, day: number) => void
   onSetAttachment:    (rowIdx: number, day: number, key: string, filename: string) => void
   onRemoveAttachment: (rowIdx: number, day: number) => void
 }
 
-function AmountCell({ cell, day, rowIdx, isReadOnly, isPending, row, onUpdateCell, onClearCell, onSetAttachment, onRemoveAttachment }: CellProps) {
+function AmountCell({ cell, day, rowIdx, isReadOnly, isPending, row, year, month, onUpdateCell, onClearCell, onSetAttachment, onRemoveAttachment }: CellProps) {
   const eur = cell ? parseFloat(cell.amountEur || '0') : 0
 
   if (isReadOnly) {
@@ -780,6 +792,8 @@ function AmountCell({ cell, day, rowIdx, isReadOnly, isPending, row, onUpdateCel
             attachmentKey={cell.attachmentKey}
             attachmentFilename={cell.attachmentFilename}
             requiresAttachment={row.requiresAttachment}
+            year={year}
+            month={month}
             disabled
             onUploaded={() => {}}
             onRemoved={() => {}}
@@ -828,6 +842,8 @@ function AmountCell({ cell, day, rowIdx, isReadOnly, isPending, row, onUpdateCel
           attachmentKey={cell?.attachmentKey ?? null}
           attachmentFilename={cell?.attachmentFilename ?? null}
           requiresAttachment={row.requiresAttachment && eur > 0}
+          year={year}
+          month={month}
           disabled={isPending}
           onUploaded={(key, filename) => onSetAttachment(rowIdx, day, key, filename)}
           onRemoved={() => onRemoveAttachment(rowIdx, day)}
@@ -839,7 +855,7 @@ function AmountCell({ cell, day, rowIdx, isReadOnly, isPending, row, onUpdateCel
 
 // ─── Km Cell ──────────────────────────────────────────────────────────────────
 
-function KmCell({ cell, day, rowIdx, isReadOnly, isPending, row, onUpdateCell, onClearCell, onSetAttachment, onRemoveAttachment }: CellProps) {
+function KmCell({ cell, day, rowIdx, isReadOnly, isPending, row, year, month, onUpdateCell, onClearCell, onSetAttachment, onRemoveAttachment }: CellProps) {
   const km  = cell?.kmDistance ? parseFloat(cell.kmDistance) : 0
   const eur = cell ? parseFloat(cell.amountEur || '0') : 0
 
@@ -882,7 +898,7 @@ function KmCell({ cell, day, rowIdx, isReadOnly, isPending, row, onUpdateCell, o
 
 // ─── Mobile Row Card ──────────────────────────────────────────────────────────
 
-function MobileRowCard({ row, rowIdx, workDays, isReadOnly, isPending, onUpdateCell, onClearCell, onSetAttachment, onRemoveAttachment, onRemoveRow }: RowProps) {
+function MobileRowCard({ row, rowIdx, workDays, isReadOnly, isPending, year, month, onUpdateCell, onClearCell, onSetAttachment, onRemoveAttachment, onRemoveRow }: RowProps) {
   const [expanded, setExpanded] = useState(false)
   const total = rowTotal(row)
 
@@ -973,6 +989,8 @@ function MobileRowCard({ row, rowIdx, workDays, isReadOnly, isPending, onUpdateC
                             attachmentKey={cell.attachmentKey}
                             attachmentFilename={cell.attachmentFilename}
                             requiresAttachment={row.requiresAttachment}
+                            year={year}
+                            month={month}
                             disabled={isPending}
                             onUploaded={(key, fn) => onSetAttachment(rowIdx, d.dayOfMonth, key, fn)}
                             onRemoved={() => onRemoveAttachment(rowIdx, d.dayOfMonth)}
