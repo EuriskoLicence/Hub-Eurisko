@@ -359,7 +359,7 @@ export async function updateRole(
 // ─── ABSENCE TYPES ────────────────────────────────────────────────────────────
 
 export type AbsenceTypeRow = {
-  id: string; code: string; shortCode: string | null; label: string; active: boolean
+  id: string; shortCode: string | null; label: string; active: boolean
 }
 
 export async function getAbsenceTypes(): Promise<AbsenceTypeRow[]> {
