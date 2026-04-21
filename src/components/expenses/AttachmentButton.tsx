@@ -42,6 +42,7 @@ export function AttachmentButton({
 }: Props) {
   const inputRef           = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [removing,  setRemoving]  = useState(false)
   const [error,     setError]     = useState('')
 
   const hasFile = !!attachmentKey
@@ -104,6 +105,22 @@ export function AttachmentButton({
     window.open(`/api/attachments/${encodeURIComponent(attachmentKey)}`, '_blank')
   }
 
+  async function handleRemove() {
+    if (!attachmentKey) return
+    setRemoving(true)
+    setError('')
+    try {
+      // Encode ogni segmento del path separatamente per preservare gli slash
+      const encodedKey = attachmentKey.split('/').map(encodeURIComponent).join('/')
+      await fetch(`/api/attachments/${encodedKey}`, { method: 'DELETE' })
+    } catch {
+      // Se la delete R2 fallisce non blocchiamo l'UI: il DB verrà comunque aggiornato
+    } finally {
+      setRemoving(false)
+      onRemoved()
+    }
+  }
+
   return (
     <div className="flex flex-col items-start gap-1">
       <div className="flex items-center gap-1.5">
@@ -135,11 +152,15 @@ export function AttachmentButton({
             {!disabled && (
               <button
                 type="button"
-                onClick={onRemoved}
-                className="rounded p-0.5 text-gray-300 hover:text-red-500 transition-colors"
+                onClick={handleRemove}
+                disabled={removing}
+                className="rounded p-0.5 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-50"
                 title="Rimuovi allegato"
               >
-                <X className="h-3 w-3" />
+                {removing
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <X className="h-3 w-3" />
+                }
               </button>
             )}
           </div>

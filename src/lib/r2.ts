@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 /** Client R2 (S3-compatible) — configurato una volta sola a livello di modulo */
@@ -36,6 +36,14 @@ export async function getPresignedGetUrl(
 ): Promise<string> {
   const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key })
   return getSignedUrl(r2, cmd, { expiresIn })
+}
+
+/**
+ * Elimina un oggetto dal bucket R2.
+ */
+export async function deleteObject(key: string): Promise<void> {
+  const cmd = new DeleteObjectCommand({ Bucket: BUCKET, Key: key })
+  await r2.send(cmd)
 }
 
 /** Tipi MIME accettati per gli allegati nota spese */
