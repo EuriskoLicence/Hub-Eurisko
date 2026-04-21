@@ -49,8 +49,11 @@ export async function POST(req: NextRequest) {
 
   const { filename, contentType } = parsed.data
   const ext = filename.split('.').pop()?.toLowerCase() ?? 'bin'
-  // Chiave: expenses/{userId}/{uuid}.{ext}
-  const key = `expenses/${session.user.id}/${randomUUID()}.${ext}`
+  // Chiave: expenses/{userId}/{anno}/{mese}/{uuid}.{ext}
+  const now   = new Date()
+  const anno  = now.getFullYear()
+  const mese  = String(now.getMonth() + 1).padStart(2, '0')
+  const key   = `expenses/${session.user.id}/${anno}/${mese}/${randomUUID()}.${ext}`
 
   const url = await getPresignedPutUrl(key, contentType)
   return NextResponse.json({ url, key })
