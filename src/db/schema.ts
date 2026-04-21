@@ -166,10 +166,11 @@ export const italianHolidays = pgTable('italian_holidays', {
 // ─── Consuntivazione ─────────────────────────────────────────────────────────
 
 export const absenceTypes = pgTable('absence_types', {
-  id:     uuid('id').primaryKey().defaultRandom(),
-  code:   text('code').notNull().unique(), // es. "FERIE", "MALATTIA"
-  label:  text('label').notNull(),
-  active: boolean('active').notNull().default(true),
+  id:        uuid('id').primaryKey().defaultRandom(),
+  code:      text('code').notNull().unique(),      // es. "FERIE", "MALATTIA"
+  shortCode: text('short_code'),                   // codifica 2 caratteri alfanumerici, es. "FE"
+  label:     text('label').notNull(),
+  active:    boolean('active').notNull().default(true),
 })
 
 export const timesheetEntries = pgTable('timesheet_entries', {

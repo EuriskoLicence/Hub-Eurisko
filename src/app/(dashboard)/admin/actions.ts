@@ -358,7 +358,9 @@ export async function updateRole(
 
 // ─── ABSENCE TYPES ────────────────────────────────────────────────────────────
 
-export type AbsenceTypeRow = { id: string; code: string; label: string; active: boolean }
+export type AbsenceTypeRow = {
+  id: string; code: string; shortCode: string | null; label: string; active: boolean
+}
 
 export async function getAbsenceTypes(): Promise<AbsenceTypeRow[]> {
   const session = await auth()
@@ -366,15 +368,24 @@ export async function getAbsenceTypes(): Promise<AbsenceTypeRow[]> {
   return db.select().from(absenceTypes).orderBy(absenceTypes.label)
 }
 
+const SHORT_CODE_RE = /^[A-Z0-9]{2}$/
+
 export async function createAbsenceType(
-  data: { code: string; label: string },
+  data: { code: string; shortCode: string; label: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
     requireSection(session, 'PARAM_ABSENCES')
     if (!data.code.trim() || !data.label.trim()) return { ok: false, error: 'Codice e label obbligatori.' }
+    const sc = data.shortCode.trim().toUpperCase()
+    if (!SHORT_CODE_RE.test(sc)) return { ok: false, error: 'La codifica deve essere esattamente 2 caratteri alfanumerici (A-Z, 0-9).' }
 
-    await db.insert(absenceTypes).values({ code: data.code.trim().toUpperCase(), label: data.label.trim(), active: true })
+    await db.insert(absenceTypes).values({
+      code:      data.code.trim().toUpperCase(),
+      shortCode: sc,
+      label:     data.label.trim(),
+      active:    true,
+    })
     revalidatePath('/admin/absences')
     return { ok: true }
   } catch (err: any) {
@@ -386,12 +397,18 @@ export async function createAbsenceType(
 
 export async function updateAbsenceType(
   id: string,
-  data: { label?: string; active?: boolean },
+  data: { shortCode?: string; label?: string; active?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
     requireSection(session, 'PARAM_ABSENCES')
-    await db.update(absenceTypes).set(data).where(eq(absenceTypes.id, id))
+    const payload: Record<string, unknown> = { ...data }
+    if (data.shortCode !== undefined) {
+      const sc = data.shortCode.trim().toUpperCase()
+      if (!SHORT_CODE_RE.test(sc)) return { ok: false, error: 'La codifica deve essere esattamente 2 caratteri alfanumerici (A-Z, 0-9).' }
+      payload.shortCode = sc
+    }
+    await db.update(absenceTypes).set(payload).where(eq(absenceTypes.id, id))
     revalidatePath('/admin/absences')
     return { ok: true }
   } catch (err) {

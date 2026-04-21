@@ -8,7 +8,7 @@ import {
   createEngagementType, updateEngagementType,
 } from '@/app/(dashboard)/admin/actions'
 
-type Item = { id: string; code?: string; label: string; active: boolean }
+type Item = { id: string; code?: string; shortCode?: string | null; label: string; active: boolean }
 type Type = 'absences' | 'engagement-types'
 
 type Props = { type: Type; items: Item[] }
@@ -35,7 +35,10 @@ export function SimpleListClient({ type, items }: Props) {
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               {type === 'absences' && (
-                <th className="text-left px-4 py-3 font-medium text-gray-600 w-24">Codice</th>
+                <>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Codice</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600 w-20">Cod. breve</th>
+                </>
               )}
               <th className="text-left px-4 py-3 font-medium text-gray-600">Label</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Attivo</th>
@@ -45,7 +48,7 @@ export function SimpleListClient({ type, items }: Props) {
           <tbody className="divide-y divide-gray-100">
             {items.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-400">
+                <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">
                   Nessun elemento.
                 </td>
               </tr>
@@ -53,7 +56,15 @@ export function SimpleListClient({ type, items }: Props) {
             {items.map((item) => (
               <tr key={item.id} className="hover:bg-gray-50">
                 {type === 'absences' && (
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{item.code}</td>
+                  <>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{item.code}</td>
+                    <td className="px-4 py-3">
+                      {item.shortCode
+                        ? <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-700">{item.shortCode}</span>
+                        : <span className="text-xs text-red-400 italic">mancante</span>
+                      }
+                    </td>
+                  </>
                 )}
                 <td className="px-4 py-3 text-gray-900">{item.label}</td>
                 <td className="px-4 py-3 text-center">
@@ -88,10 +99,11 @@ export function SimpleListClient({ type, items }: Props) {
 function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: () => void }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [code,   setCode]   = useState(item?.code  ?? '')
-  const [label,  setLabel]  = useState(item?.label  ?? '')
-  const [active, setActive] = useState(item?.active ?? true)
-  const [error,  setError]  = useState('')
+  const [code,      setCode]      = useState(item?.code      ?? '')
+  const [shortCode, setShortCode] = useState(item?.shortCode ?? '')
+  const [label,     setLabel]     = useState(item?.label     ?? '')
+  const [active,    setActive]    = useState(item?.active    ?? true)
+  const [error,     setError]     = useState('')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -100,8 +112,8 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
       let res
       if (type === 'absences') {
         res = item
-          ? await updateAbsenceType(item.id, { label, active })
-          : await createAbsenceType({ code, label })
+          ? await updateAbsenceType(item.id, { shortCode, label, active })
+          : await createAbsenceType({ code, shortCode, label })
       } else {
         res = item
           ? await updateEngagementType(item.id, { name: label, active })
@@ -111,6 +123,8 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
       else setError((res as any).error)
     })
   }
+
+  const shortCodeValid = shortCode.trim().length === 0 || /^[A-Z0-9]{1,2}$/i.test(shortCode.trim())
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -124,14 +138,36 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
         <form onSubmit={handleSubmit} className="space-y-3">
           {error && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</div>}
 
+          {/* Codice (solo creazione assenze) */}
           {type === 'absences' && !item && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Codice *</label>
               <input type="text" value={code}
                 onChange={(e) => { setCode(e.target.value.toUpperCase()); setError('') }}
-                placeholder="es. FER"
+                placeholder="es. FERIE"
                 className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono
                            focus:outline-none focus:ring-2 focus:ring-gray-500" />
+            </div>
+          )}
+
+          {/* Codice breve — sempre visibile per assenze */}
+          {type === 'absences' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Codifica breve * <span className="text-gray-400 font-normal">(2 caratteri alfanumerici)</span>
+              </label>
+              <input
+                type="text"
+                value={shortCode}
+                maxLength={2}
+                onChange={(e) => { setShortCode(e.target.value.toUpperCase()); setError('') }}
+                placeholder="es. FE"
+                className="w-20 rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono tracking-widest
+                           focus:outline-none focus:ring-2 focus:ring-gray-500"
+              />
+              {shortCode.length > 0 && shortCode.length < 2 && (
+                <p className="mt-1 text-xs text-amber-600">Inserisci esattamente 2 caratteri</p>
+              )}
             </div>
           )}
 
@@ -159,7 +195,13 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               Annulla
             </button>
-            <button type="submit" disabled={isPending || !label.trim()}
+            <button
+              type="submit"
+              disabled={
+                isPending ||
+                !label.trim() ||
+                (type === 'absences' && shortCode.trim().length !== 2)
+              }
               className="flex-1 rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
               {isPending ? 'Salvataggio…' : item ? 'Salva' : 'Crea'}
             </button>
