@@ -27,7 +27,6 @@ export async function GET(req: NextRequest) {
     const reports = await db
       .select({
         reportId:   expenseReports.id,
-        userId:     expenseReports.userId,
         firstName:  users.firstName,
         lastName:   users.lastName,
         compYear:   expenseReports.year,
@@ -47,19 +46,29 @@ export async function GET(req: NextRequest) {
 
     if (reports.length > 0) {
       const reportIds = reports.map((r) => r.reportId)
+
       const lines = await db
-        .select({ reportId: expenseLines.reportId, categoryLabel: expenseCategories.label, amountEur: expenseLines.amountEur })
+        .select({
+          reportId:  expenseLines.reportId,
+          amountEur: expenseLines.amountEur,
+          isKmBased: expenseCategories.isKmBased,
+          tariffaKm: expenseLines.tariffaKm,
+        })
         .from(expenseLines)
         .innerJoin(expenseCategories, eq(expenseLines.categoryId, expenseCategories.id))
         .where(inArray(expenseLines.reportId, reportIds))
 
-      const aggKey = (rid: string, cat: string) => `${rid}||${cat}`
-      const aggMap = new Map<string, number>()
-      const catOrder = new Map<string, number>()
+      type ReportAgg = { kmTotal: number; total: number; tariffaKm: string | null }
+      const aggMap = new Map<string, ReportAgg>()
       for (const l of lines) {
-        const k = aggKey(l.reportId, l.categoryLabel)
-        aggMap.set(k, (aggMap.get(k) ?? 0) + parseFloat(l.amountEur))
-        if (!catOrder.has(l.categoryLabel)) catOrder.set(l.categoryLabel, catOrder.size)
+        const agg = aggMap.get(l.reportId) ?? { kmTotal: 0, total: 0, tariffaKm: null }
+        const eur = parseFloat(l.amountEur)
+        agg.total += eur
+        if (l.isKmBased) {
+          agg.kmTotal += eur
+          if (!agg.tariffaKm && l.tariffaKm) agg.tariffaKm = l.tariffaKm
+        }
+        aggMap.set(l.reportId, agg)
       }
 
       for (const r of reports) {
@@ -67,27 +76,36 @@ export async function GET(req: NextRequest) {
         const compLabel = `${IT_MONTHS[r.compMonth - 1]} ${r.compYear}`
         const sentDate  = r.approvedAt ? new Date(r.approvedAt).toLocaleDateString('it-IT') : ''
 
-        const cats = Array.from(catOrder.entries())
-          .filter(([cat]) => aggMap.has(aggKey(r.reportId, cat)))
-          .sort((a, b) => a[1] - b[1])
-          .map(([cat]) => cat)
+        const agg     = aggMap.get(r.reportId) ?? { kmTotal: 0, total: 0, tariffaKm: null }
+        const kmTotal = parseFloat(agg.kmTotal.toFixed(2))
+        const total   = parseFloat(agg.total.toFixed(2))
+        const altro   = parseFloat((total - kmTotal).toFixed(2))
+        const tariffa = agg.tariffaKm ? `€ ${parseFloat(agg.tariffaKm).toFixed(4)}` : '—'
 
-        for (const cat of cats) {
-          const amount = aggMap.get(aggKey(r.reportId, cat)) ?? 0
-          wsRows.push([filterPeriodLabel, fullName, compLabel, sentDate, cat, `€ ${amount.toFixed(2)}`])
-        }
+        wsRows.push([
+          filterPeriodLabel,
+          fullName,
+          compLabel,
+          sentDate,
+          kmTotal > 0 ? `€ ${kmTotal.toFixed(2)}` : '—',
+          altro   > 0 ? `€ ${altro.toFixed(2)}`   : '—',
+          `€ ${total.toFixed(2)}`,
+          tariffa,
+        ])
       }
     }
 
     const buffer = await generatePdfTable({
       title:   `Note spese — ${filterPeriodLabel}`,
       columns: [
-        { header: 'Periodo invio',   width: 80  },
-        { header: 'Cognome e Nome',  width: 130 },
-        { header: 'Mese competenza', width: 90  },
-        { header: 'Data invio',      width: 70  },
-        { header: 'Voce spesa',      width: 130 },
-        { header: 'Importo EUR',     width: 70, align: 'right' },
+        { header: 'Periodo invio',   width: 72  },
+        { header: 'Cognome e Nome',  width: 120 },
+        { header: 'Mese competenza', width: 80  },
+        { header: 'Data invio',      width: 62  },
+        { header: 'Rimborsi km',     width: 65, align: 'right' },
+        { header: 'Altro',           width: 65, align: 'right' },
+        { header: 'Totale',          width: 65, align: 'right' },
+        { header: 'Tariffa km',      width: 62, align: 'right' },
       ],
       rows: wsRows,
     })
