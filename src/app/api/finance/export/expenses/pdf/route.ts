@@ -26,12 +26,9 @@ export async function GET(req: NextRequest) {
 
     const reports = await db
       .select({
-        reportId:   expenseReports.id,
-        firstName:  users.firstName,
-        lastName:   users.lastName,
-        compYear:   expenseReports.year,
-        compMonth:  expenseReports.month,
-        approvedAt: expenseReports.approvedAt,
+        reportId:  expenseReports.id,
+        firstName: users.firstName,
+        lastName:  users.lastName,
       })
       .from(expenseReports)
       .innerJoin(users, eq(users.id, expenseReports.userId))
@@ -72,9 +69,7 @@ export async function GET(req: NextRequest) {
       }
 
       for (const r of reports) {
-        const fullName  = `${r.lastName} ${r.firstName}`
-        const compLabel = `${IT_MONTHS[r.compMonth - 1]} ${r.compYear}`
-        const sentDate  = r.approvedAt ? new Date(r.approvedAt).toLocaleDateString('it-IT') : ''
+        const fullName = `${r.lastName} ${r.firstName}`
 
         const agg     = aggMap.get(r.reportId) ?? { kmTotal: 0, total: 0, tariffaKm: null }
         const kmTotal = parseFloat(agg.kmTotal.toFixed(2))
@@ -85,8 +80,6 @@ export async function GET(req: NextRequest) {
         wsRows.push([
           filterPeriodLabel,
           fullName,
-          compLabel,
-          sentDate,
           kmTotal > 0 ? `€ ${kmTotal.toFixed(2)}` : '—',
           altro   > 0 ? `€ ${altro.toFixed(2)}`   : '—',
           `€ ${total.toFixed(2)}`,
@@ -98,14 +91,12 @@ export async function GET(req: NextRequest) {
     const buffer = await generatePdfTable({
       title:   `Note spese — ${filterPeriodLabel}`,
       columns: [
-        { header: 'Periodo invio',   width: 72  },
-        { header: 'Cognome e Nome',  width: 120 },
-        { header: 'Mese competenza', width: 80  },
-        { header: 'Data invio',      width: 62  },
-        { header: 'Rimborsi km',     width: 65, align: 'right' },
-        { header: 'Altro',           width: 65, align: 'right' },
-        { header: 'Totale',          width: 65, align: 'right' },
-        { header: 'Tariffa km',      width: 62, align: 'right' },
+        { header: 'Periodo invio',  width: 80  },
+        { header: 'Cognome e Nome', width: 160 },
+        { header: 'Rimborsi km',    width: 70, align: 'right' },
+        { header: 'Altro',          width: 70, align: 'right' },
+        { header: 'Totale',         width: 70, align: 'right' },
+        { header: 'Tariffa km',     width: 65, align: 'right' },
       ],
       rows: wsRows,
     })

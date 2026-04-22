@@ -27,9 +27,6 @@ export async function GET(req: NextRequest) {
     const headers = [
       'Periodo invio',
       'Cognome e Nome',
-      'Email',
-      'Mese competenza',
-      'Data invio',
       'Rimborsi km',
       'Altro',
       'Totale',
@@ -39,14 +36,9 @@ export async function GET(req: NextRequest) {
     // Report inviati nel periodo selezionato (filtro su approved_at)
     const reports = await db
       .select({
-        reportId:   expenseReports.id,
-        userId:     expenseReports.userId,
-        firstName:  users.firstName,
-        lastName:   users.lastName,
-        email:      users.email,
-        compYear:   expenseReports.year,
-        compMonth:  expenseReports.month,
-        approvedAt: expenseReports.approvedAt,
+        reportId:  expenseReports.id,
+        firstName: users.firstName,
+        lastName:  users.lastName,
       })
       .from(expenseReports)
       .innerJoin(users, eq(users.id, expenseReports.userId))
@@ -93,11 +85,7 @@ export async function GET(req: NextRequest) {
       }
 
       for (const r of reports) {
-        const fullName  = `${r.lastName} ${r.firstName}`
-        const compLabel = `${IT_MONTHS[r.compMonth - 1]} ${r.compYear}`
-        const sentDate  = r.approvedAt
-          ? new Date(r.approvedAt).toLocaleDateString('it-IT')
-          : ''
+        const fullName = `${r.lastName} ${r.firstName}`
 
         const agg      = aggMap.get(r.reportId) ?? { kmTotal: 0, total: 0, tariffaKm: null }
         const kmTotal  = parseFloat(agg.kmTotal.toFixed(2))
@@ -108,9 +96,6 @@ export async function GET(req: NextRequest) {
         wsRows.push([
           filterPeriodLabel,
           fullName,
-          r.email,
-          compLabel,
-          sentDate,
           kmTotal,
           altro,
           total,
@@ -134,9 +119,6 @@ export async function GET(req: NextRequest) {
     ws['!cols'] = [
       { wch: 16 }, // Periodo invio
       { wch: 28 }, // Cognome e Nome
-      { wch: 28 }, // Email
-      { wch: 18 }, // Mese competenza
-      { wch: 14 }, // Data invio
       { wch: 14 }, // Rimborsi km
       { wch: 14 }, // Altro
       { wch: 14 }, // Totale
