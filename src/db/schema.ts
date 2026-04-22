@@ -290,6 +290,7 @@ export const expenseLines = pgTable('expense_lines', {
   exchangeRate:       numeric('exchange_rate', { precision: 10, scale: 6 }).notNull().default('1'),
   amountEur:          numeric('amount_eur', { precision: 10, scale: 2 }).notNull(), // amount * exchange_rate
   kmDistance:         numeric('km_distance', { precision: 7, scale: 2 }),           // nullable, solo se is_km_based
+  tariffaKm:          numeric('tariffa_km',  { precision: 6, scale: 4 }),           // tariffa €/km usata al momento del salvataggio
   attachmentKey:      text('attachment_key'),
   attachmentFilename: text('attachment_filename'),
   createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

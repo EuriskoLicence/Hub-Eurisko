@@ -80,6 +80,7 @@ export type ExpensePageData = {
 export type SaveLine = {
   categoryId:         string
   engagementId:       string | null
+  tariffaKm:          string | null   // tariffa €/km al momento del salvataggio (solo per righe km-based)
   day:                number
   description:        string
   amount:             string

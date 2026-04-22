@@ -14,6 +14,7 @@ import {
   saveExpenseLines,
   submitExpenseReport,
   requestExpenseAmendment,
+  updateUserTariffaKm,
 } from '@/app/(dashboard)/expenses/detail-actions'
 import type {
   ExpensePageData, ExpenseRowState, CellData, SaveLine,
@@ -77,6 +78,7 @@ function rowsToSaveLines(rows: ExpenseRowState[]): SaveLine[] {
       lines.push({
         categoryId:         row.categoryId,
         engagementId:       row.engagementId  ?? null,
+        tariffaKm:          row.isKmBased ? (row.kmRate ?? null) : null,
         day,
         description:        cell.description || '',
         amount:             cell.amount,
@@ -125,7 +127,18 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
   const [amendReason, setAmendReason] = useState('')
   const [showAmend,   setShowAmend]   = useState(false)
   const [showAddRow,  setShowAddRow]  = useState(false)
+  const [showKmConfirm, setShowKmConfirm] = useState(false)
+  const [tariffaKm,   setTariffaKm]  = useState<string>(userTariffaKm ?? '')
+  const [savingRate,  setSavingRate]  = useState(false)
   const { toasts, push } = useToast()
+
+  // Categorie km-based disponibili
+  const hasKmCategories = categories.some((c) => c.isKmBased)
+
+  // Righe km-based con almeno una cella valorizzata
+  const kmRowsWithData = rows.filter(
+    (r) => r.isKmBased && Object.values(r.cells).some((c) => parseFloat(c?.kmDistance || '0') > 0),
+  )
 
   const isReadOnly = readOnly || (report !== null && report.status !== 'draft') || isFuture
 
@@ -134,6 +147,34 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
     () => calendar,
     [calendar],
   )
+
+  // ── Tariffa km ───────────────────────────────────────────────────────────
+
+  function handleTariffaKmChange(newRate: string) {
+    setTariffaKm(newRate)
+
+    // Ricalcola tutte le celle km-based con la nuova tariffa
+    setRows((prev) => prev.map((row) => {
+      if (!row.isKmBased) return row
+      const updatedCells = Object.fromEntries(
+        Object.entries(row.cells).map(([day, cell]) => {
+          if (!cell) return [day, cell]
+          return [day, {
+            ...cell,
+            amountEur: calcKmAmountEur(cell.kmDistance, newRate || null),
+            amount:    calcKmAmountEur(cell.kmDistance, newRate || null),
+          }]
+        }),
+      )
+      return { ...row, kmRate: newRate || null, cells: updatedCells }
+    }))
+  }
+
+  function handleTariffaKmBlur() {
+    // Salva la nuova tariffa nel profilo utente
+    setSavingRate(true)
+    updateUserTariffaKm(tariffaKm || null).finally(() => setSavingRate(false))
+  }
 
   // ── Cell helpers ─────────────────────────────────────────────────────────
 
@@ -145,7 +186,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
 
       // Auto-recalc amountEur
       if (row.isKmBased && (patch.kmDistance !== undefined)) {
-        cell.amountEur = calcKmAmountEur(cell.kmDistance, row.kmRate)
+        cell.amountEur = calcKmAmountEur(cell.kmDistance, tariffaKm || null)
         cell.amount    = cell.amountEur
       } else if (!row.isKmBased && (patch.amount !== undefined || patch.exchangeRate !== undefined)) {
         cell.amountEur = calcAmountEur(cell.amount, cell.exchangeRate)
@@ -254,7 +295,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
       isKmBased:          cat.isKmBased,
       engagementId:       engagementId,
       engagementName:     eng ? `${eng.name} (${eng.code})` : null,
-      kmRate:             cat.isKmBased ? userTariffaKm : null,
+      kmRate:             cat.isKmBased ? (tariffaKm || null) : null,
       cells:              {},
     }
     setRows((p) => [...p, newRow])
@@ -278,26 +319,35 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
 
   // ── Submit ───────────────────────────────────────────────────────────────
 
+  function validateBeforeSubmit(): boolean {
+    const rowsWithoutEngagement = rows.filter((r) => !r.engagementId)
+    if (rowsWithoutEngagement.length > 0) {
+      push(`Commessa mancante per: ${rowsWithoutEngagement.map((r) => r.categoryLabel).join(', ')}`, 'error')
+      return false
+    }
+    const missingRows = ATTACHMENTS_ENABLED ? rows.filter((r) => {
+      if (!r.requiresAttachment) return false
+      return Object.values(r.cells).some((c) => parseFloat(c?.amountEur || '0') > 0 && !c?.attachmentKey)
+    }) : []
+    if (missingRows.length > 0) {
+      push(`Allegato mancante per: ${missingRows.map((r) => r.categoryLabel).join(', ')}`, 'error')
+      return false
+    }
+    return true
+  }
+
   function handleSubmit() {
+    if (!validateBeforeSubmit()) return
+    // Se ci sono righe km-based con dati, mostra prima la conferma tariffa
+    if (kmRowsWithData.length > 0) {
+      setShowKmConfirm(true)
+      return
+    }
+    doSubmit()
+  }
+
+  function doSubmit() {
     startTransition(async () => {
-      // Verifica che tutte le righe abbiano una commessa
-      const rowsWithoutEngagement = rows.filter((r) => !r.engagementId)
-      if (rowsWithoutEngagement.length > 0) {
-        push(`Commessa mancante per: ${rowsWithoutEngagement.map((r) => r.categoryLabel).join(', ')}`, 'error')
-        return
-      }
-
-      // Client-side check for required attachments (solo se feature abilitata)
-      const missingRows = ATTACHMENTS_ENABLED ? rows.filter((r) => {
-        if (!r.requiresAttachment) return false
-        return Object.values(r.cells).some((c) => parseFloat(c?.amountEur || '0') > 0 && !c?.attachmentKey)
-      }) : []
-      if (missingRows.length > 0) {
-        push(`Allegato mancante per: ${missingRows.map((r) => r.categoryLabel).join(', ')}`, 'error')
-        return
-      }
-
-      // Save first (creates the report if not exists), then submit
       const saveRes = await saveExpenseLines(reportId, year, month, rowsToSaveLines(rows))
       if (!saveRes.ok) { push(saveRes.error, 'error'); return }
 
@@ -405,6 +455,42 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
           </div>
         )}
       </div>
+
+      {/* ── Tariffa km ── */}
+      {hasKmCategories && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+          <span className="text-sm font-medium text-blue-800">Tariffa rimborso km:</span>
+          {isReadOnly ? (
+            <span className="text-sm font-semibold text-blue-900">
+              {tariffaKm ? `€ ${parseFloat(tariffaKm).toFixed(4)}/km` : <span className="text-amber-600 italic">non impostata</span>}
+            </span>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-blue-500 pointer-events-none">€</span>
+                <input
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  value={tariffaKm}
+                  onChange={(e) => handleTariffaKmChange(e.target.value)}
+                  onBlur={handleTariffaKmBlur}
+                  placeholder="0.0000"
+                  disabled={isPending}
+                  className="w-28 rounded-lg border border-blue-200 bg-white pl-6 pr-2 py-1.5 text-sm
+                             text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-400
+                             disabled:opacity-50"
+                />
+              </div>
+              <span className="text-sm text-blue-600">/km</span>
+              {savingRate && <span className="text-xs text-blue-400 italic">salvando…</span>}
+            </div>
+          )}
+          <span className="text-xs text-blue-400 ml-auto hidden sm:block">
+            Modificando questo valore si aggiorna anche il tuo profilo utente
+          </span>
+        </div>
+      )}
 
       {/* ── Banners ── */}
       {isFuture && (
@@ -571,7 +657,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
             <AddRowDropdown
               categories={categories}
               engagements={engagements}
-              userTariffaKm={userTariffaKm}
+              userTariffaKm={tariffaKm || null}
               existingLocalIds={rows.map((r) => r.localId)}
               onAdd={addRow}
               onClose={() => setShowAddRow(false)}
@@ -585,6 +671,43 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
         <div className="md:hidden flex justify-between items-center rounded-xl bg-white border border-gray-200 px-4 py-3">
           <span className="text-sm font-medium text-gray-600">Totale nota spese</span>
           <span className="text-base font-bold text-blue-700">€ {total.toFixed(2)}</span>
+        </div>
+      )}
+
+      {/* ── Modal conferma tariffa km ── */}
+      {showKmConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Conferma invio nota spese</h2>
+            <p className="text-sm text-gray-600">
+              La nota spese include voci di rimborso chilometrico calcolate con la seguente tariffa:
+            </p>
+            <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-center">
+              <span className="text-2xl font-bold text-blue-700">
+                € {tariffaKm ? parseFloat(tariffaKm).toFixed(4) : '0.0000'}
+              </span>
+              <span className="text-sm text-blue-500 ml-1">/km</span>
+            </div>
+            <p className="text-sm text-gray-500">Confermi di voler inviare la nota spese con questa tariffa?</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowKmConfirm(false)}
+                disabled={isPending}
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowKmConfirm(false); doSubmit() }}
+                disabled={isPending}
+                className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {isPending ? 'Invio…' : 'Conferma e invia'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

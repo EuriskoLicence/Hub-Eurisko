@@ -21,6 +21,31 @@ import type { CalendarDaySerialized } from '@/types/timesheet'
 
 const IT_DAY_ABBR = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab']
 
+// ─── Aggiorna tariffa km utente ───────────────────────────────────────────────
+
+export async function updateUserTariffaKm(
+  rate: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'EXPENSES')
+    const userId = session.user.id
+
+    let value: string | null = null
+    if (rate !== null && rate !== '') {
+      const parsed = parseFloat(rate)
+      if (isNaN(parsed) || parsed < 0) return { ok: false, error: 'Tariffa non valida.' }
+      value = parsed.toFixed(4)
+    }
+
+    await db.update(users).set({ tariffaKm: value }).where(eq(users.id, userId))
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
 function isFutureMonth(year: number, month: number): boolean {
   const now = new Date()
   return year > now.getFullYear() ||
@@ -97,6 +122,7 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
   }))
 
   // Righe griglia (solo se esiste il report)
+  let savedKmRate: string | null = null
   const rowMap = new Map<string, ExpenseRowState>()
   if (r) {
     const lineRows = await db
@@ -111,6 +137,7 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
         exchangeRate:       expenseLines.exchangeRate,
         amountEur:          expenseLines.amountEur,
         kmDistance:         expenseLines.kmDistance,
+        tariffaKm:          expenseLines.tariffaKm,
         attachmentKey:      expenseLines.attachmentKey,
         attachmentFilename: expenseLines.attachmentFilename,
         catCode:            expenseCategories.code,
@@ -121,6 +148,11 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
       .from(expenseLines)
       .innerJoin(expenseCategories, eq(expenseLines.categoryId, expenseCategories.id))
       .where(eq(expenseLines.reportId, r.id))
+
+    // La tariffa km effettiva è quella salvata nella prima riga km-based (se esiste),
+    // altrimenti quella del profilo utente
+    savedKmRate = lineRows.find((l) => l.tariffaKm)?.tariffaKm ?? null
+    const effectiveKmRate = savedKmRate ?? userTariffaKm
 
     for (const line of lineRows) {
       const rowKey = `${line.categoryId}|${line.engagementId ?? ''}`
@@ -135,7 +167,7 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
           isKmBased:          line.catKmBased,
           engagementId:       line.engagementId  ?? null,
           engagementName:     eng ? `${eng.name} (${eng.code})` : null,
-          kmRate:             userTariffaKm,
+          kmRate:             line.catKmBased ? effectiveKmRate : null,
           cells:              {},
         })
       }
@@ -182,7 +214,7 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
       isKmBased: c.isKmBased,
     })),
     engagements:  engRows,
-    userTariffaKm,
+    userTariffaKm: savedKmRate ?? userTariffaKm,
     calendar,
   }
 }
@@ -257,6 +289,7 @@ export async function saveExpenseLines(
           exchangeRate:       l.exchangeRate,
           amountEur:          l.amountEur,
           kmDistance:         l.kmDistance  || null,
+          tariffaKm:          l.tariffaKm   || null,
           attachmentKey:      l.attachmentKey      || null,
           attachmentFilename: l.attachmentFilename || null,
         })),
