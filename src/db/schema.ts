@@ -90,7 +90,8 @@ export const users = pgTable('users', {
   active:             boolean('active').notNull().default(true),
   mustChangePassword: boolean('must_change_password').notNull().default(false),
   tempPassword:       text('temp_password'),
-  tariffaKm:          numeric('tariffa_km', { precision: 6, scale: 4 }), // tariffa rimborso km (facoltativa)
+  tariffaKm:              numeric('tariffa_km', { precision: 6, scale: 4 }), // tariffa rimborso km (facoltativa)
+  excludeFromTimesheet:   boolean('exclude_from_timesheet').notNull().default(false),
   createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })

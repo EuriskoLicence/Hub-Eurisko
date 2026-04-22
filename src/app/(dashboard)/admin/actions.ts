@@ -20,16 +20,17 @@ import { sendWelcomeEmail, sendPasswordResetEmail } from '@/lib/email'
 // ─── USERS ────────────────────────────────────────────────────────────────────
 
 export type UserRow = {
-  id:                 string
-  firstName:          string
-  lastName:           string
-  email:              string
-  roleId:             string | null
-  roleName:           string | null
-  active:             boolean
-  mustChangePassword: boolean
-  tempPassword:       string | null
-  tariffaKm:          string | null
+  id:                   string
+  firstName:            string
+  lastName:             string
+  email:                string
+  roleId:               string | null
+  roleName:             string | null
+  active:               boolean
+  mustChangePassword:   boolean
+  tempPassword:         string | null
+  tariffaKm:            string | null
+  excludeFromTimesheet: boolean
 }
 
 export type RoleOption = { id: string; name: string }
@@ -41,16 +42,17 @@ export async function getUserList(): Promise<{ users: UserRow[]; roles: RoleOpti
   const [userRows, roleRows] = await Promise.all([
     db
       .select({
-        id:                 users.id,
-        firstName:          users.firstName,
-        lastName:           users.lastName,
-        email:              users.email,
-        roleId:             users.roleId,
-        roleName:           roles.name,
-        active:             users.active,
-        mustChangePassword: users.mustChangePassword,
-        tempPassword:       users.tempPassword,
-        tariffaKm:          users.tariffaKm,
+        id:                   users.id,
+        firstName:            users.firstName,
+        lastName:             users.lastName,
+        email:                users.email,
+        roleId:               users.roleId,
+        roleName:             roles.name,
+        active:               users.active,
+        mustChangePassword:   users.mustChangePassword,
+        tempPassword:         users.tempPassword,
+        tariffaKm:            users.tariffaKm,
+        excludeFromTimesheet: users.excludeFromTimesheet,
       })
       .from(users)
       .leftJoin(roles, eq(roles.id, users.roleId))
@@ -60,16 +62,17 @@ export async function getUserList(): Promise<{ users: UserRow[]; roles: RoleOpti
 
   return {
     users: userRows.map((u) => ({
-      id:                 u.id,
-      firstName:          u.firstName,
-      lastName:           u.lastName,
-      email:              u.email,
-      roleId:             u.roleId,
-      roleName:           u.roleName ?? null,
-      active:             u.active,
-      mustChangePassword: u.mustChangePassword,
-      tempPassword:       u.tempPassword ?? null,
-      tariffaKm:          u.tariffaKm   ?? null,
+      id:                   u.id,
+      firstName:            u.firstName,
+      lastName:             u.lastName,
+      email:                u.email,
+      roleId:               u.roleId,
+      roleName:             u.roleName ?? null,
+      active:               u.active,
+      mustChangePassword:   u.mustChangePassword,
+      tempPassword:         u.tempPassword ?? null,
+      tariffaKm:            u.tariffaKm   ?? null,
+      excludeFromTimesheet: u.excludeFromTimesheet,
     })),
     roles: roleRows,
   }
@@ -131,7 +134,7 @@ export async function createUser(data: {
 
 export async function updateUser(
   id: string,
-  data: { firstName?: string; lastName?: string; email?: string; roleId?: string | null; active?: boolean; newPassword?: string; tariffaKm?: string | null },
+  data: { firstName?: string; lastName?: string; email?: string; roleId?: string | null; active?: boolean; newPassword?: string; tariffaKm?: string | null; excludeFromTimesheet?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -142,7 +145,8 @@ export async function updateUser(
     if (data.lastName)             set.lastName  = data.lastName.trim()
     if (data.email)                set.email     = data.email.trim().toLowerCase()
     if (data.roleId !== undefined)  set.roleId   = data.roleId
-    if (data.active !== undefined)  set.active   = data.active
+    if (data.active !== undefined)               set.active               = data.active
+    if (data.excludeFromTimesheet !== undefined) set.excludeFromTimesheet = data.excludeFromTimesheet
     if (data.tariffaKm !== undefined) {
       if (data.tariffaKm === '' || data.tariffaKm === null) {
         set.tariffaKm = null

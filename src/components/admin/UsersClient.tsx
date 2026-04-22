@@ -65,7 +65,14 @@ export function UsersClient({ users, roles }: Props) {
             {users.map((u) => (
               <tr key={u.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
-                  <div className="font-medium text-gray-900">{u.firstName} {u.lastName}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900">{u.firstName} {u.lastName}</span>
+                    {u.excludeFromTimesheet && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                        excl. consunt.
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-gray-400">{u.email}</div>
                   {/* Password temporanea — visibile solo finché l'utente non la cambia */}
                   {u.mustChangePassword && u.tempPassword && (
@@ -192,12 +199,13 @@ function UserModal({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
   const [form, setForm] = useState({
-    firstName: user?.firstName          ?? '',
-    lastName:  user?.lastName           ?? '',
-    email:     user?.email              ?? '',
-    roleId:    user?.roleId             ?? '',
-    active:    user?.active             ?? true,
-    tariffaKm: user?.tariffaKm          ?? '',
+    firstName:            user?.firstName            ?? '',
+    lastName:             user?.lastName             ?? '',
+    email:                user?.email                ?? '',
+    roleId:               user?.roleId               ?? '',
+    active:               user?.active               ?? true,
+    tariffaKm:            user?.tariffaKm            ?? '',
+    excludeFromTimesheet: user?.excludeFromTimesheet ?? false,
   })
 
   function set(k: keyof typeof form, v: any) { setForm((p) => ({ ...p, [k]: v })); setError('') }
@@ -209,12 +217,13 @@ function UserModal({
       let res
       if (user) {
         res = await updateUser(user.id, {
-          firstName: form.firstName,
-          lastName:  form.lastName,
-          email:     form.email,
-          roleId:    form.roleId || null,
-          active:    form.active,
-          tariffaKm: form.tariffaKm || null,
+          firstName:            form.firstName,
+          lastName:             form.lastName,
+          email:                form.email,
+          roleId:               form.roleId || null,
+          active:               form.active,
+          tariffaKm:            form.tariffaKm || null,
+          excludeFromTimesheet: form.excludeFromTimesheet,
         })
       } else {
         res = await createUser({
@@ -286,10 +295,19 @@ function UserModal({
           </div>
 
           {user && (
-            <div className="flex items-center gap-2">
-              <input id="u-active" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600" disabled={isPending} />
-              <label htmlFor="u-active" className="text-sm text-gray-700">Attivo</label>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input id="u-active" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600" disabled={isPending} />
+                <label htmlFor="u-active" className="text-sm text-gray-700">Attivo</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input id="u-excl-ts" type="checkbox" checked={form.excludeFromTimesheet} onChange={(e) => set('excludeFromTimesheet', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-amber-500" disabled={isPending} />
+                <label htmlFor="u-excl-ts" className="text-sm text-gray-700">
+                  Escludi da obbligo consuntivazione
+                </label>
+              </div>
             </div>
           )}
 

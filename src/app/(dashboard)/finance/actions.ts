@@ -71,6 +71,7 @@ export type ExportRow = {
 
 async function getUsersWithSection(sectionCode: string) {
   // users → roles → role_profiles → profiles → profile_sections
+  // Esclude utenti con exclude_from_timesheet = true
   const rows = await db
     .selectDistinct({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
     .from(users)
@@ -80,7 +81,10 @@ async function getUsersWithSection(sectionCode: string) {
       eq(profileSections.profileId,   roleProfiles.profileId),
       eq(profileSections.sectionCode, sectionCode),
     ))
-    .where(eq(users.active, true))
+    .where(and(
+      eq(users.active, true),
+      eq(users.excludeFromTimesheet, false),
+    ))
     .orderBy(users.lastName, users.firstName)
   return rows
 }
