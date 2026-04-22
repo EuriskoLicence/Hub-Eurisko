@@ -6,7 +6,7 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import {
   users, roles, profiles, profileSections, roleProfiles,
-  absenceTypes, expenseCategories, vehicleTypes, engagementTypes,
+  absenceTypes, expenseCategories, engagementTypes,
   italianHolidays,
 } from '@/db/schema'
 import { requireSection, HttpError } from '@/lib/permissions/auth-helpers'
@@ -435,23 +435,11 @@ export type ExpenseCategoryRow = {
   id: string; code: string; label: string
   requiresAttachment: boolean; isKmBased: boolean; active: boolean
 }
-export type VehicleTypeRow = { id: string; name: string; ratePerKm: string; active: boolean }
-
-export async function getExpenseCategoriesAndVehicles(): Promise<{
-  categories: ExpenseCategoryRow[]; vehicleTypes: VehicleTypeRow[]
-}> {
+export async function getExpenseCategories(): Promise<{ categories: ExpenseCategoryRow[] }> {
   const session = await auth()
   requireSection(session, 'PARAM_EXPENSE_CAT')
-
-  const [cats, vehs] = await Promise.all([
-    db.select().from(expenseCategories).orderBy(expenseCategories.label),
-    db.select().from(vehicleTypes).orderBy(vehicleTypes.name),
-  ])
-
-  return {
-    categories:   cats,
-    vehicleTypes: vehs.map((v) => ({ ...v, ratePerKm: v.ratePerKm })),
-  }
+  const cats = await db.select().from(expenseCategories).orderBy(expenseCategories.label)
+  return { categories: cats }
 }
 
 export async function createExpenseCategory(
@@ -486,45 +474,6 @@ export async function updateExpenseCategory(
     const session = await auth()
     requireSection(session, 'PARAM_EXPENSE_CAT')
     await db.update(expenseCategories).set(data).where(eq(expenseCategories.id, id))
-    revalidatePath('/admin/expense-categories')
-    return { ok: true }
-  } catch (err) {
-    if (err instanceof HttpError) return { ok: false, error: err.message }
-    return { ok: false, error: 'Errore del server.' }
-  }
-}
-
-export async function createVehicleType(
-  data: { name: string; ratePerKm: string },
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  try {
-    const session = await auth()
-    requireSection(session, 'PARAM_EXPENSE_CAT')
-    const rate = parseFloat(data.ratePerKm)
-    if (!data.name.trim() || isNaN(rate) || rate <= 0) return { ok: false, error: 'Nome e tariffa validi obbligatori.' }
-
-    await db.insert(vehicleTypes).values({ name: data.name.trim(), ratePerKm: rate.toFixed(4), active: true })
-    revalidatePath('/admin/expense-categories')
-    return { ok: true }
-  } catch (err) {
-    if (err instanceof HttpError) return { ok: false, error: err.message }
-    return { ok: false, error: 'Errore del server.' }
-  }
-}
-
-export async function updateVehicleType(
-  id: string,
-  data: { name?: string; ratePerKm?: string; active?: boolean },
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  try {
-    const session = await auth()
-    requireSection(session, 'PARAM_EXPENSE_CAT')
-    const set: Record<string, any> = {}
-    if (data.name)       set.name       = data.name.trim()
-    if (data.ratePerKm)  set.ratePerKm  = parseFloat(data.ratePerKm).toFixed(4)
-    if (data.active !== undefined) set.active = data.active
-
-    await db.update(vehicleTypes).set(set).where(eq(vehicleTypes.id, id))
     revalidatePath('/admin/expense-categories')
     return { ok: true }
   } catch (err) {

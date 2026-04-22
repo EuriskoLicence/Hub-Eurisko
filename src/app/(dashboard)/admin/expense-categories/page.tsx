@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { getExpenseCategoriesAndVehicles } from '../actions'
+import { getExpenseCategories } from '../actions'
 import { ExpenseCatClient } from '@/components/admin/ExpenseCatClient'
 import { Tag, PaperclipIcon } from 'lucide-react'
 import { ATTACHMENTS_ENABLED } from '@/lib/features'
@@ -12,7 +12,7 @@ export default async function AdminExpenseCatPage() {
   const session = await auth()
   if (!session || !hasSection(session, 'PARAM_EXPENSE_CAT')) redirect('/dashboard')
 
-  const { categories, vehicleTypes } = await getExpenseCategoriesAndVehicles()
+  const { categories } = await getExpenseCategories()
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -22,7 +22,7 @@ export default async function AdminExpenseCatPage() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Categorie spese</h1>
-          <p className="text-sm text-gray-500">Categorie nota spese e tipi veicolo (rimborso km)</p>
+          <p className="text-sm text-gray-500">Categorie nota spese (la tariffa km è configurabile per utente)</p>
         </div>
       </div>
 
@@ -39,7 +39,7 @@ export default async function AdminExpenseCatPage() {
         </div>
       )}
 
-      <ExpenseCatClient categories={categories} vehicleTypes={vehicleTypes} />
+      <ExpenseCatClient categories={categories} />
     </div>
   )
 }

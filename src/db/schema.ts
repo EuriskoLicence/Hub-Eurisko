@@ -250,15 +250,6 @@ export const timesheetExtraMonths = pgTable(
 
 // ─── Nota spese ───────────────────────────────────────────────────────────────
 
-export const vehicleTypes = pgTable('vehicle_types', {
-  id:         uuid('id').primaryKey().defaultRandom(),
-  name:       text('name').notNull().unique(), // es. "Auto propria"
-  ratePerKm:  numeric('rate_per_km', { precision: 6, scale: 4 }).notNull(), // es. 0.4200
-  active:     boolean('active').notNull().default(true),
-  createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:  timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
-
 export const expenseCategories = pgTable('expense_categories', {
   id:                 uuid('id').primaryKey().defaultRandom(),
   code:               text('code').notNull().unique(),
@@ -299,7 +290,6 @@ export const expenseLines = pgTable('expense_lines', {
   exchangeRate:       numeric('exchange_rate', { precision: 10, scale: 6 }).notNull().default('1'),
   amountEur:          numeric('amount_eur', { precision: 10, scale: 2 }).notNull(), // amount * exchange_rate
   kmDistance:         numeric('km_distance', { precision: 7, scale: 2 }),           // nullable, solo se is_km_based
-  vehicleTypeId:      uuid('vehicle_type_id').references(() => vehicleTypes.id),    // nullable, obbligatorio se is_km_based
   attachmentKey:      text('attachment_key'),
   attachmentFilename: text('attachment_filename'),
   createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -382,10 +372,6 @@ export const timesheetMonthsRelations = relations(timesheetMonths, ({ one }) => 
   reviewer: one(users, { fields: [timesheetMonths.amendmentReviewedBy], references: [users.id] }),
 }))
 
-export const vehicleTypesRelations = relations(vehicleTypes, ({ many }) => ({
-  expenseLines: many(expenseLines),
-}))
-
 export const expenseCategoriesRelations = relations(expenseCategories, ({ many }) => ({
   expenseLines: many(expenseLines),
 }))
@@ -400,5 +386,4 @@ export const expenseLinesRelations = relations(expenseLines, ({ one }) => ({
   report:      one(expenseReports,    { fields: [expenseLines.reportId],      references: [expenseReports.id] }),
   category:    one(expenseCategories, { fields: [expenseLines.categoryId],    references: [expenseCategories.id] }),
   engagement:  one(engagements,       { fields: [expenseLines.engagementId],  references: [engagements.id] }),
-  vehicleType: one(vehicleTypes,      { fields: [expenseLines.vehicleTypeId], references: [vehicleTypes.id] }),
 }))

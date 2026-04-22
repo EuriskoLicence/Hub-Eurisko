@@ -23,7 +23,6 @@ import {
   users,
   absenceTypes,
   expenseCategories,
-  vehicleTypes,
   engagementTypes,
   clients,
   projects,
@@ -245,20 +244,6 @@ async function seed() {
       .onConflictDoNothing()
   }
   console.log(`     ✓ ${EXPENSE_CATEGORIES.length} categorie inserite`)
-
-  // ── 11. Tipi veicolo ───────────────────────────────────────────────────────
-  console.log('7/14 · Tipi veicolo...')
-
-  const VEHICLE_TYPES = [
-    { name: 'Auto propria',    ratePerKm: '0.4200' },
-    { name: 'Auto aziendale',  ratePerKm: '0.3000' },
-    { name: 'Moto',            ratePerKm: '0.2500' },
-  ]
-
-  for (const v of VEHICLE_TYPES) {
-    await db.insert(vehicleTypes).values({ name: v.name, ratePerKm: v.ratePerKm }).onConflictDoNothing()
-  }
-  console.log(`     ✓ ${VEHICLE_TYPES.length} tipi veicolo inseriti`)
 
   // ── 12. Tipologie commessa ─────────────────────────────────────────────────
   console.log('8/14 · Tipologie commessa...')
