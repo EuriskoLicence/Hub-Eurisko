@@ -4,12 +4,6 @@ export type ExpenseStatus =
   | 'amendment_requested'
   | 'amendment_rejected'
 
-export type VehicleTypeOption = {
-  id:         string
-  name:       string
-  ratePerKm:  string   // NUMERIC restituito come stringa da Drizzle
-}
-
 export type ExpenseCategoryOption = {
   id:                 string
   code:               string
@@ -49,8 +43,7 @@ export type ExpenseRowState = {
   isKmBased:          boolean
   engagementId:       string | null
   engagementName:     string | null                    // nome commessa (per visualizzazione)
-  vehicleTypeId:      string | null
-  vehicleRatePerKm:   string | null                    // per calcolo EUR da km
+  kmRate:             string | null                    // tariffa km dell'utente (per calcolo EUR da km)
   cells:              Record<number, CellData | null>  // day (1-31) → dati cella
 }
 
@@ -79,7 +72,7 @@ export type ExpensePageData = {
   rows:         ExpenseRowState[]   // pre-costruite dal server
   categories:   ExpenseCategoryOption[]
   engagements:  EngagementOption[]
-  vehicleTypes: VehicleTypeOption[]
+  userTariffaKm: string | null      // tariffa km dell'utente (per categorie km-based)
   calendar:     import('@/types/timesheet').CalendarDaySerialized[]
 }
 
@@ -87,7 +80,6 @@ export type ExpensePageData = {
 export type SaveLine = {
   categoryId:         string
   engagementId:       string | null
-  vehicleTypeId:      string | null
   day:                number
   description:        string
   amount:             string

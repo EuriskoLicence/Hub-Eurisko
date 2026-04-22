@@ -192,11 +192,12 @@ function UserModal({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')
   const [form, setForm] = useState({
-    firstName: user?.firstName ?? '',
-    lastName:  user?.lastName  ?? '',
-    email:     user?.email     ?? '',
-    roleId:    user?.roleId    ?? '',
-    active:    user?.active    ?? true,
+    firstName: user?.firstName          ?? '',
+    lastName:  user?.lastName           ?? '',
+    email:     user?.email              ?? '',
+    roleId:    user?.roleId             ?? '',
+    active:    user?.active             ?? true,
+    tariffaKm: user?.tariffaKm          ?? '',
   })
 
   function set(k: keyof typeof form, v: any) { setForm((p) => ({ ...p, [k]: v })); setError('') }
@@ -213,6 +214,7 @@ function UserModal({
           email:     form.email,
           roleId:    form.roleId || null,
           active:    form.active,
+          tariffaKm: form.tariffaKm || null,
         })
       } else {
         res = await createUser({
@@ -262,6 +264,25 @@ function UserModal({
               <option value="">Nessun ruolo</option>
               {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Tariffa km <span className="text-gray-400 font-normal">(€/km, facoltativa)</span>
+            </label>
+            <input
+              type="number"
+              step="0.0001"
+              min="0"
+              value={form.tariffaKm}
+              onChange={(e) => set('tariffaKm', e.target.value)}
+              placeholder="es. 0.4200"
+              disabled={isPending}
+              className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                         disabled:opacity-50"
+            />
+            <p className="mt-1 text-xs text-gray-400">Usata per il calcolo automatico delle spese chilometriche.</p>
           </div>
 
           {user && (

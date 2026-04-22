@@ -29,6 +29,7 @@ export type UserRow = {
   active:             boolean
   mustChangePassword: boolean
   tempPassword:       string | null
+  tariffaKm:          string | null
 }
 
 export type RoleOption = { id: string; name: string }
@@ -49,6 +50,7 @@ export async function getUserList(): Promise<{ users: UserRow[]; roles: RoleOpti
         active:             users.active,
         mustChangePassword: users.mustChangePassword,
         tempPassword:       users.tempPassword,
+        tariffaKm:          users.tariffaKm,
       })
       .from(users)
       .leftJoin(roles, eq(roles.id, users.roleId))
@@ -67,6 +69,7 @@ export async function getUserList(): Promise<{ users: UserRow[]; roles: RoleOpti
       active:             u.active,
       mustChangePassword: u.mustChangePassword,
       tempPassword:       u.tempPassword ?? null,
+      tariffaKm:          u.tariffaKm   ?? null,
     })),
     roles: roleRows,
   }
@@ -128,18 +131,27 @@ export async function createUser(data: {
 
 export async function updateUser(
   id: string,
-  data: { firstName?: string; lastName?: string; email?: string; roleId?: string | null; active?: boolean; newPassword?: string },
+  data: { firstName?: string; lastName?: string; email?: string; roleId?: string | null; active?: boolean; newPassword?: string; tariffaKm?: string | null },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
     requireSection(session, 'PARAM_USERS')
 
     const set: Record<string, any> = {}
-    if (data.firstName)           set.firstName = data.firstName.trim()
-    if (data.lastName)            set.lastName  = data.lastName.trim()
-    if (data.email)               set.email     = data.email.trim().toLowerCase()
-    if (data.roleId !== undefined) set.roleId   = data.roleId
-    if (data.active !== undefined) set.active   = data.active
+    if (data.firstName)            set.firstName = data.firstName.trim()
+    if (data.lastName)             set.lastName  = data.lastName.trim()
+    if (data.email)                set.email     = data.email.trim().toLowerCase()
+    if (data.roleId !== undefined)  set.roleId   = data.roleId
+    if (data.active !== undefined)  set.active   = data.active
+    if (data.tariffaKm !== undefined) {
+      if (data.tariffaKm === '' || data.tariffaKm === null) {
+        set.tariffaKm = null
+      } else {
+        const rate = parseFloat(data.tariffaKm)
+        if (isNaN(rate) || rate < 0) return { ok: false, error: 'Tariffa km non valida.' }
+        set.tariffaKm = rate.toFixed(4)
+      }
+    }
     if (data.newPassword) {
       if (data.newPassword.length < 8) return { ok: false, error: 'Password minimo 8 caratteri.' }
       set.passwordHash = await bcrypt.hash(data.newPassword, 12)

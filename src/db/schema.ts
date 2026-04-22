@@ -81,17 +81,18 @@ export const roleProfiles = pgTable(
 // ─── Utenti ───────────────────────────────────────────────────────────────────
 
 export const users = pgTable('users', {
-  id:           uuid('id').primaryKey().defaultRandom(),
-  firstName:    text('first_name').notNull(),
-  lastName:     text('last_name').notNull(),
-  email:        text('email').notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
-  roleId:       uuid('role_id').notNull().references(() => roles.id),
-  active:              boolean('active').notNull().default(true),
-  mustChangePassword:  boolean('must_change_password').notNull().default(false),
-  tempPassword:        text('temp_password'),
-  createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:    timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  firstName:          text('first_name').notNull(),
+  lastName:           text('last_name').notNull(),
+  email:              text('email').notNull().unique(),
+  passwordHash:       text('password_hash').notNull(),
+  roleId:             uuid('role_id').notNull().references(() => roles.id),
+  active:             boolean('active').notNull().default(true),
+  mustChangePassword: boolean('must_change_password').notNull().default(false),
+  tempPassword:       text('temp_password'),
+  tariffaKm:          numeric('tariffa_km', { precision: 6, scale: 4 }), // tariffa rimborso km (facoltativa)
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 // ─── Anagrafica clienti / progetti / commesse ─────────────────────────────────

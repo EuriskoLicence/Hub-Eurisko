@@ -8,7 +8,7 @@ import { ATTACHMENTS_ENABLED } from '@/lib/features'
 import {
   expenseReports, expenseLines, expenseCategories,
   engagementUsers, engagements, projects, clients,
-  vehicleTypes, users,
+  users,
 } from '@/db/schema'
 import { requireSection, HttpError } from '@/lib/permissions/auth-helpers'
 import { getMonthCalendar } from '@/lib/italian-calendar'
@@ -75,11 +75,13 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
       ),
     )
 
-  // Tipi veicolo attivi
-  const vehRows = await db
-    .select()
-    .from(vehicleTypes)
-    .where(eq(vehicleTypes.active, true))
+  // Tariffa km dell'utente
+  const userRow = await db
+    .select({ tariffaKm: users.tariffaKm })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+  const userTariffaKm = userRow[0]?.tariffaKm ?? null
 
   // Calendario
   const calDays = await getMonthCalendar(year, month)
@@ -102,7 +104,6 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
         id:                 expenseLines.id,
         categoryId:         expenseLines.categoryId,
         engagementId:       expenseLines.engagementId,
-        vehicleTypeId:      expenseLines.vehicleTypeId,
         date:               expenseLines.date,
         description:        expenseLines.description,
         amount:             expenseLines.amount,
@@ -122,9 +123,8 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
       .where(eq(expenseLines.reportId, r.id))
 
     for (const line of lineRows) {
-      const rowKey = `${line.categoryId}|${line.engagementId ?? ''}|${line.vehicleTypeId ?? ''}`
+      const rowKey = `${line.categoryId}|${line.engagementId ?? ''}`
       if (!rowMap.has(rowKey)) {
-        const veh = vehRows.find((v) => v.id === line.vehicleTypeId)
         const eng = engRows.find((e) => e.id === line.engagementId)
         rowMap.set(rowKey, {
           localId:            rowKey,
@@ -135,8 +135,7 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
           isKmBased:          line.catKmBased,
           engagementId:       line.engagementId  ?? null,
           engagementName:     eng ? `${eng.name} (${eng.code})` : null,
-          vehicleTypeId:      line.vehicleTypeId ?? null,
-          vehicleRatePerKm:   veh?.ratePerKm     ?? null,
+          kmRate:             userTariffaKm,
           cells:              {},
         })
       }
@@ -183,9 +182,7 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
       isKmBased: c.isKmBased,
     })),
     engagements:  engRows,
-    vehicleTypes: vehRows.map((v) => ({
-      id: v.id, name: v.name, ratePerKm: v.ratePerKm,
-    })),
+    userTariffaKm,
     calendar,
   }
 }
@@ -253,7 +250,6 @@ export async function saveExpenseLines(
           reportId:           actualReportId!,
           categoryId:         l.categoryId,
           engagementId:       l.engagementId  || null,
-          vehicleTypeId:      l.vehicleTypeId || null,
           date:               `${year}-${monthS}-${String(l.day).padStart(2, '0')}`,
           description:        l.description || '',
           amount:             l.amount,

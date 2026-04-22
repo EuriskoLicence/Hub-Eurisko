@@ -77,7 +77,6 @@ function rowsToSaveLines(rows: ExpenseRowState[]): SaveLine[] {
       lines.push({
         categoryId:         row.categoryId,
         engagementId:       row.engagementId  ?? null,
-        vehicleTypeId:      row.vehicleTypeId ?? null,
         day,
         description:        cell.description || '',
         amount:             cell.amount,
@@ -117,7 +116,7 @@ type Props = {
 }
 
 export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Props) {
-  const { report, year, month, isFuture, rows: initialRows, categories, engagements, vehicleTypes, calendar } = data
+  const { report, year, month, isFuture, rows: initialRows, categories, engagements, userTariffaKm, calendar } = data
   const router = useRouter()
 
   const [rows,        setRows]        = useState<ExpenseRowState[]>(initialRows)
@@ -146,7 +145,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
 
       // Auto-recalc amountEur
       if (row.isKmBased && (patch.kmDistance !== undefined)) {
-        cell.amountEur = calcKmAmountEur(cell.kmDistance, row.vehicleRatePerKm)
+        cell.amountEur = calcKmAmountEur(cell.kmDistance, row.kmRate)
         cell.amount    = cell.amountEur
       } else if (!row.isKmBased && (patch.amount !== undefined || patch.exchangeRate !== undefined)) {
         cell.amountEur = calcAmountEur(cell.amount, cell.exchangeRate)
@@ -235,11 +234,10 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
 
   // ── Add Row ──────────────────────────────────────────────────────────────
 
-  function addRow(categoryId: string, engagementId: string | null, vehicleTypeId: string | null) {
+  function addRow(categoryId: string, engagementId: string | null) {
     const cat     = categories.find((c) => c.id === categoryId)!
-    const veh     = vehicleTypes.find((v) => v.id === vehicleTypeId)
     const eng     = engagements.find((e) => e.id === engagementId)
-    const localId = `${categoryId}|${engagementId ?? ''}|${vehicleTypeId ?? ''}`
+    const localId = `${categoryId}|${engagementId ?? ''}`
 
     // Avoid duplicates
     if (rows.some((r) => r.localId === localId)) {
@@ -256,8 +254,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
       isKmBased:          cat.isKmBased,
       engagementId:       engagementId,
       engagementName:     eng ? `${eng.name} (${eng.code})` : null,
-      vehicleTypeId:      vehicleTypeId,
-      vehicleRatePerKm:   veh?.ratePerKm ?? null,
+      kmRate:             cat.isKmBased ? userTariffaKm : null,
       cells:              {},
     }
     setRows((p) => [...p, newRow])
@@ -574,7 +571,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
             <AddRowDropdown
               categories={categories}
               engagements={engagements}
-              vehicleTypes={vehicleTypes}
+              userTariffaKm={userTariffaKm}
               existingLocalIds={rows.map((r) => r.localId)}
               onAdd={addRow}
               onClose={() => setShowAddRow(false)}
@@ -692,8 +689,8 @@ function DesktopRow({
             {row.engagementName}
           </div>
         )}
-        {row.vehicleRatePerKm && (
-          <div className="text-[10px] text-gray-400 mt-0.5">€ {row.vehicleRatePerKm}/km</div>
+        {row.kmRate && (
+          <div className="text-[10px] text-gray-400 mt-0.5">€ {row.kmRate}/km</div>
         )}
       </td>
 
@@ -911,8 +908,8 @@ function MobileRowCard({ row, rowIdx, workDays, isReadOnly, isPending, year, mon
       >
         <div>
           <div className="font-medium text-gray-800 text-sm">{row.categoryLabel}</div>
-          {row.vehicleRatePerKm && (
-            <div className="text-xs text-gray-400">€ {row.vehicleRatePerKm}/km</div>
+          {row.kmRate && (
+            <div className="text-xs text-gray-400">€ {row.kmRate}/km</div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -1015,28 +1012,23 @@ function MobileRowCard({ row, rowIdx, workDays, isReadOnly, isPending, year, mon
 // ─── Add Row Dropdown ─────────────────────────────────────────────────────────
 
 type AddRowDropdownProps = {
-  categories:      ExpensePageData['categories']
-  engagements:     ExpensePageData['engagements']
-  vehicleTypes:    ExpensePageData['vehicleTypes']
+  categories:       ExpensePageData['categories']
+  engagements:      ExpensePageData['engagements']
+  userTariffaKm:    string | null
   existingLocalIds: string[]
-  onAdd:           (categoryId: string, engagementId: string | null, vehicleTypeId: string | null) => void
-  onClose:         () => void
+  onAdd:            (categoryId: string, engagementId: string | null) => void
+  onClose:          () => void
 }
 
-function AddRowDropdown({ categories, engagements, vehicleTypes, existingLocalIds, onAdd, onClose }: AddRowDropdownProps) {
+function AddRowDropdown({ categories, engagements, userTariffaKm, existingLocalIds, onAdd, onClose }: AddRowDropdownProps) {
   const [selectedCat, setSelectedCat] = useState('')
   const [selectedEng, setSelectedEng] = useState('')
-  const [selectedVeh, setSelectedVeh] = useState('')
 
   const cat = categories.find((c) => c.id === selectedCat)
 
   function handleAdd() {
     if (!selectedCat) return
-    onAdd(
-      selectedCat,
-      selectedEng || null,
-      cat?.isKmBased ? (selectedVeh || null) : null,
-    )
+    onAdd(selectedCat, selectedEng || null)
   }
 
   return (
@@ -1045,7 +1037,7 @@ function AddRowDropdown({ categories, engagements, vehicleTypes, existingLocalId
         <label className="block text-xs font-medium text-gray-700 mb-1">Categoria</label>
         <select
           value={selectedCat}
-          onChange={(e) => { setSelectedCat(e.target.value); setSelectedVeh('') }}
+          onChange={(e) => setSelectedCat(e.target.value)}
           className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-base
                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
@@ -1055,6 +1047,15 @@ function AddRowDropdown({ categories, engagements, vehicleTypes, existingLocalId
           ))}
         </select>
       </div>
+
+      {cat?.isKmBased && (
+        <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-700">
+          {userTariffaKm
+            ? <>Tariffa km: <span className="font-semibold">€ {userTariffaKm}/km</span></>
+            : <span className="text-amber-600">Tariffa km non impostata nel profilo utente.</span>
+          }
+        </div>
+      )}
 
       {cat && engagements.length > 0 && (
         <div>
@@ -1080,23 +1081,6 @@ function AddRowDropdown({ categories, engagements, vehicleTypes, existingLocalId
         </div>
       )}
 
-      {cat?.isKmBased && vehicleTypes.length > 0 && (
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Tipo veicolo</label>
-          <select
-            value={selectedVeh}
-            onChange={(e) => setSelectedVeh(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Seleziona…</option>
-            {vehicleTypes.map((v) => (
-              <option key={v.id} value={v.id}>{v.name} (€ {v.ratePerKm}/km)</option>
-            ))}
-          </select>
-        </div>
-      )}
-
       <div className="flex gap-2 pt-1">
         <button
           type="button"
@@ -1108,7 +1092,7 @@ function AddRowDropdown({ categories, engagements, vehicleTypes, existingLocalId
         <button
           type="button"
           onClick={handleAdd}
-          disabled={!selectedCat || (cat?.isKmBased && !selectedVeh) || (engagements.length > 0 && !selectedEng)}
+          disabled={!selectedCat || (engagements.length > 0 && !selectedEng)}
           className="flex-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white
                      hover:bg-blue-700 disabled:opacity-50"
         >

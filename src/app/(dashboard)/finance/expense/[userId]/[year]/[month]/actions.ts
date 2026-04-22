@@ -6,7 +6,7 @@ import { db } from '@/db'
 import {
   expenseReports, expenseLines, expenseCategories,
   engagementUsers, engagements, projects, clients,
-  vehicleTypes, users,
+  users,
 } from '@/db/schema'
 import { requireSection } from '@/lib/permissions/auth-helpers'
 import { getMonthCalendar } from '@/lib/italian-calendar'
@@ -35,9 +35,9 @@ export async function getFinanceExpenseView(
   const session = await auth()
   requireSection(session, 'FINANCE_DASHBOARD')
 
-  // Nome utente target
+  // Nome utente target e tariffa km
   const userRows = await db
-    .select({ firstName: users.firstName, lastName: users.lastName })
+    .select({ firstName: users.firstName, lastName: users.lastName, tariffaKm: users.tariffaKm })
     .from(users)
     .where(eq(users.id, targetUserId))
     .limit(1)
@@ -45,6 +45,7 @@ export async function getFinanceExpenseView(
   const targetUserName = userRows[0]
     ? `${userRows[0].firstName} ${userRows[0].lastName}`
     : 'Utente'
+  const userTariffaKm = userRows[0]?.tariffaKm ?? null
 
   // Report esistente
   const reportRows = await db
@@ -87,12 +88,6 @@ export async function getFinanceExpenseView(
       ),
     )
 
-  // Tipi veicolo attivi
-  const vehRows = await db
-    .select()
-    .from(vehicleTypes)
-    .where(eq(vehicleTypes.active, true))
-
   // Calendario
   const calDays = await getMonthCalendar(year, month)
   const calendar: CalendarDaySerialized[] = calDays.map((d) => ({
@@ -114,7 +109,6 @@ export async function getFinanceExpenseView(
         id:                 expenseLines.id,
         categoryId:         expenseLines.categoryId,
         engagementId:       expenseLines.engagementId,
-        vehicleTypeId:      expenseLines.vehicleTypeId,
         date:               expenseLines.date,
         description:        expenseLines.description,
         amount:             expenseLines.amount,
@@ -134,9 +128,8 @@ export async function getFinanceExpenseView(
       .where(eq(expenseLines.reportId, r.id))
 
     for (const line of lineRows) {
-      const rowKey = `${line.categoryId}|${line.engagementId ?? ''}|${line.vehicleTypeId ?? ''}`
+      const rowKey = `${line.categoryId}|${line.engagementId ?? ''}`
       if (!rowMap.has(rowKey)) {
-        const veh = vehRows.find((v) => v.id === line.vehicleTypeId)
         const eng = engRows.find((e) => e.id === line.engagementId)
         rowMap.set(rowKey, {
           localId:            rowKey,
@@ -147,8 +140,7 @@ export async function getFinanceExpenseView(
           isKmBased:          line.catKmBased,
           engagementId:       line.engagementId  ?? null,
           engagementName:     eng ? `${eng.name} (${eng.code})` : null,
-          vehicleTypeId:      line.vehicleTypeId ?? null,
-          vehicleRatePerKm:   veh?.ratePerKm     ?? null,
+          kmRate:             userTariffaKm,
           cells:              {},
         })
       }
@@ -195,7 +187,7 @@ export async function getFinanceExpenseView(
       isKmBased: c.isKmBased,
     })),
     engagements:  engRows,
-    vehicleTypes: vehRows.map((v) => ({ id: v.id, name: v.name, ratePerKm: v.ratePerKm })),
+    userTariffaKm,
     calendar,
     targetUserName,
   }
