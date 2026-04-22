@@ -365,10 +365,18 @@ export async function submitExpenseReport(
       }
     }
 
+    // Legge la tariffa km attuale dell'utente per salvarla sul report
+    const userKmRow = await db
+      .select({ tariffaKm: users.tariffaKm })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+    const userTariffaKm = userKmRow[0]?.tariffaKm ?? null
+
     const now = new Date()
     await db
       .update(expenseReports)
-      .set({ status: 'approved', approvedAt: now, updatedAt: now })
+      .set({ status: 'approved', approvedAt: now, updatedAt: now, tariffaKm: userTariffaKm })
       .where(eq(expenseReports.id, reportId))
 
     revalidatePath(`/expenses/${reportId}`)

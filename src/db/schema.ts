@@ -269,6 +269,7 @@ export const expenseReports = pgTable('expense_reports', {
   totalAmount:             numeric('total_amount', { precision: 10, scale: 2 }).notNull().default('0'),
   currency:                text('currency').notNull().default('EUR'),
   status:                  expenseStatusEnum('status').notNull().default('draft'),
+  tariffaKm:               numeric('tariffa_km', { precision: 6, scale: 4 }),  // tariffa €/km al momento dell'invio
   approvedAt:              timestamp('approved_at', { withTimezone: true }),
   amendmentRequestedAt:    timestamp('amendment_requested_at', { withTimezone: true }),
   amendmentReason:         text('amendment_reason'),

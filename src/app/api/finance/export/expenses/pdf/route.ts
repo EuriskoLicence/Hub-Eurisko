@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
       .select({
         reportId:  expenseReports.id,
         userId:    expenseReports.userId,
+        tariffaKm: expenseReports.tariffaKm,
         firstName: users.firstName,
         lastName:  users.lastName,
       })
@@ -45,9 +46,10 @@ export async function GET(req: NextRequest) {
     if (reports.length > 0) {
       const reportIds = reports.map((r) => r.reportId)
 
+      // Mappa reportId → { userId, firstName, lastName, tariffaKm }
       const reportMeta = new Map(reports.map((r) => [
         r.reportId,
-        { userId: r.userId, firstName: r.firstName, lastName: r.lastName },
+        { userId: r.userId, firstName: r.firstName, lastName: r.lastName, tariffaKm: r.tariffaKm },
       ]))
 
       const lines = await db
@@ -55,27 +57,18 @@ export async function GET(req: NextRequest) {
           reportId:  expenseLines.reportId,
           amountEur: expenseLines.amountEur,
           isKmBased: expenseCategories.isKmBased,
-          tariffaKm: expenseLines.tariffaKm,
         })
         .from(expenseLines)
         .innerJoin(expenseCategories, eq(expenseLines.categoryId, expenseCategories.id))
         .where(inArray(expenseLines.reportId, reportIds))
 
-      // 1ª passata: determina tariffaKm per ogni report
-      const reportKmRate = new Map<string, string | null>()
-      for (const l of lines) {
-        if (l.isKmBased && l.tariffaKm && !reportKmRate.has(l.reportId)) {
-          reportKmRate.set(l.reportId, l.tariffaKm)
-        }
-      }
-
-      // 2ª passata: aggrega per (userId, tariffaKm)
+      // Aggrega per (userId, tariffaKm del report)
       type UserAgg = { firstName: string; lastName: string; kmTotal: number; total: number; tariffaKm: string | null }
       const userAggMap = new Map<string, UserAgg>()
 
       for (const l of lines) {
         const meta   = reportMeta.get(l.reportId)!
-        const kmRate = reportKmRate.get(l.reportId) ?? null
+        const kmRate = meta.tariffaKm ?? null
         const key    = `${meta.userId}|${kmRate ?? ''}`
         const agg    = userAggMap.get(key) ?? {
           firstName: meta.firstName,
