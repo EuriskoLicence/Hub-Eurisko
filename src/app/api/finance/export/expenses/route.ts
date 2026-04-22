@@ -33,10 +33,13 @@ export async function GET(req: NextRequest) {
       'Tariffa km',
     ]
 
+    const filterPeriodLabel = `${IT_MONTHS[month - 1]} ${year}`
+
     // Report inviati nel periodo selezionato (filtro su approved_at)
     const reports = await db
       .select({
         reportId:  expenseReports.id,
+        userId:    expenseReports.userId,
         firstName: users.firstName,
         lastName:  users.lastName,
       })
@@ -51,12 +54,16 @@ export async function GET(req: NextRequest) {
       )
       .orderBy(users.lastName, users.firstName)
 
-    const filterPeriodLabel = `${IT_MONTHS[month - 1]} ${year}`
-
     const wsRows: (string | number)[][] = []
 
     if (reports.length > 0) {
       const reportIds = reports.map((r) => r.reportId)
+
+      // Mappa reportId → { userId, firstName, lastName }
+      const reportMeta = new Map(reports.map((r) => [
+        r.reportId,
+        { userId: r.userId, firstName: r.firstName, lastName: r.lastName },
+      ]))
 
       // Righe di spesa con flag isKmBased e tariffaKm
       const lines = await db
@@ -70,37 +77,47 @@ export async function GET(req: NextRequest) {
         .innerJoin(expenseCategories, eq(expenseLines.categoryId, expenseCategories.id))
         .where(inArray(expenseLines.reportId, reportIds))
 
-      // Aggrega per report
-      type ReportAgg = { kmTotal: number; total: number; tariffaKm: string | null }
-      const aggMap = new Map<string, ReportAgg>()
+      // 1ª passata: determina tariffaKm per ogni report
+      const reportKmRate = new Map<string, string | null>()
       for (const l of lines) {
-        const agg = aggMap.get(l.reportId) ?? { kmTotal: 0, total: 0, tariffaKm: null }
-        const eur = parseFloat(l.amountEur)
-        agg.total += eur
-        if (l.isKmBased) {
-          agg.kmTotal += eur
-          if (!agg.tariffaKm && l.tariffaKm) agg.tariffaKm = l.tariffaKm
+        if (l.isKmBased && l.tariffaKm && !reportKmRate.has(l.reportId)) {
+          reportKmRate.set(l.reportId, l.tariffaKm)
         }
-        aggMap.set(l.reportId, agg)
       }
 
-      for (const r of reports) {
-        const fullName = `${r.lastName} ${r.firstName}`
+      // 2ª passata: aggrega per (userId, tariffaKm)
+      type UserAgg = { firstName: string; lastName: string; kmTotal: number; total: number; tariffaKm: string | null }
+      const userAggMap = new Map<string, UserAgg>()
 
-        const agg      = aggMap.get(r.reportId) ?? { kmTotal: 0, total: 0, tariffaKm: null }
+      for (const l of lines) {
+        const meta     = reportMeta.get(l.reportId)!
+        const kmRate   = reportKmRate.get(l.reportId) ?? null
+        const key      = `${meta.userId}|${kmRate ?? ''}`
+        const agg      = userAggMap.get(key) ?? {
+          firstName: meta.firstName,
+          lastName:  meta.lastName,
+          kmTotal:   0,
+          total:     0,
+          tariffaKm: kmRate,
+        }
+        const eur = parseFloat(l.amountEur)
+        agg.total += eur
+        if (l.isKmBased) agg.kmTotal += eur
+        userAggMap.set(key, agg)
+      }
+
+      // Ordina per cognome + nome e costruisce le righe
+      const sorted = Array.from(userAggMap.values())
+        .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`))
+
+      for (const agg of sorted) {
+        const fullName = `${agg.lastName} ${agg.firstName}`
         const kmTotal  = parseFloat(agg.kmTotal.toFixed(2))
         const total    = parseFloat(agg.total.toFixed(2))
         const altro    = parseFloat((total - kmTotal).toFixed(2))
         const tariffa  = agg.tariffaKm ? parseFloat(agg.tariffaKm).toFixed(4) : ''
 
-        wsRows.push([
-          filterPeriodLabel,
-          fullName,
-          kmTotal,
-          altro,
-          total,
-          tariffa,
-        ])
+        wsRows.push([filterPeriodLabel, fullName, kmTotal, altro, total, tariffa])
       }
     }
 
@@ -128,7 +145,6 @@ export async function GET(req: NextRequest) {
     const label = `${IT_MONTHS[month - 1]}_${year}`
     const wb    = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Note spese')
-
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
 
     return new NextResponse(buffer, {
