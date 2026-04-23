@@ -66,7 +66,7 @@ export function UsersClient({ users, roles }: Props) {
               <tr key={u.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">{u.firstName} {u.lastName}</span>
+                    <span className="font-medium text-gray-900">{u.lastName} {u.firstName}</span>
                     {u.excludeFromTimesheet && (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
                         excl. consunt.
