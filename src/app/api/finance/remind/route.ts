@@ -4,6 +4,23 @@ import { handleAuthError, requireSection } from '@/lib/permissions/auth-helpers'
 import { getUsersWithoutSubmittedTimesheet } from '@/app/(dashboard)/finance/actions'
 import { sendTimesheetReminderEmail } from '@/lib/email'
 
+// Resend ha un limite di 5 richieste/secondo — aumentiamo il timeout Vercel
+// per gestire liste di utenti grandi (es. 34 utenti = ~7 batch = ~7s di attesa)
+export const maxDuration = 60
+
+const BATCH_SIZE  = 5
+const BATCH_DELAY = 1050  // ms — leggermente sopra 1s per non sfiorare il limite
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms))
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const result: T[][] = []
+  for (let i = 0; i < arr.length; i += size) result.push(arr.slice(i, i + size))
+  return result
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await auth()
@@ -23,19 +40,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, sent: 0 })
     }
 
-    // Fire & forget — send all in parallel, don't await
-    await Promise.allSettled(
-      missing.map((u) =>
-        sendTimesheetReminderEmail({
-          userEmail: u.email,
-          userName:  u.fullName,
-          year,
-          month,
-        }),
-      ),
-    )
+    // Invio a batch da 5 con 1 secondo di pausa tra i batch
+    // per rispettare il rate limit di Resend (max 5 req/s)
+    const batches = chunk(missing, BATCH_SIZE)
+    let sent = 0
 
-    return NextResponse.json({ ok: true, sent: missing.length })
+    for (let i = 0; i < batches.length; i++) {
+      const results = await Promise.allSettled(
+        batches[i].map((u) =>
+          sendTimesheetReminderEmail({
+            userEmail: u.email,
+            userName:  u.fullName,
+            year,
+            month,
+          }),
+        ),
+      )
+      sent += results.filter((r) => r.status === 'fulfilled').length
+
+      // Pausa tra batch, tranne dopo l'ultimo
+      if (i < batches.length - 1) await sleep(BATCH_DELAY)
+    }
+
+    return NextResponse.json({ ok: true, sent })
   } catch (err) {
     return handleAuthError(err)
   }
