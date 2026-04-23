@@ -18,9 +18,12 @@ export const metadata: Metadata = {
   description: 'Portale interno per la gestione delle risorse umane',
   manifest:    '/manifest.webmanifest',
   appleWebApp: {
-    capable:           true,
-    statusBarStyle:    'default',
-    title:             'Hub Eurisko',
+    capable:        true,
+    statusBarStyle: 'default',
+    title:          'Hub Eurisko',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
   },
   icons: {
     icon:  [
