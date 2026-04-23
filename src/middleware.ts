@@ -14,6 +14,12 @@ export default auth((req) => {
   // Le route /api/auth/** sono sempre pubbliche (gestite da NextAuth)
   if (isApiAuth) return NextResponse.next()
 
+  // Risorse PWA pubbliche (manifest, icone, service worker)
+  const isPwaResource =
+    nextUrl.pathname === '/manifest.webmanifest' ||
+    nextUrl.pathname.startsWith('/api/icon/')
+  if (isPwaResource) return NextResponse.next()
+
   // Utente non autenticato → redirect a /login
   if (!isLoggedIn && !isLoginPage) {
     const loginUrl = new URL('/login', nextUrl.origin)
