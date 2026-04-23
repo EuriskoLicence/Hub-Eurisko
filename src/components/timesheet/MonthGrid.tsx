@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useCallback, useMemo } from 'react'
+import { useState, useTransition, useCallback, useMemo, useRef, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Save, SendHorizonal, AlertTriangle, ChevronDown, ChevronRight, X, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -440,12 +440,39 @@ function DesktopGrid({
   onFillDefault: (rowIdx: number) => void
   onRemoveRow:   (rowIdx: number) => void
 }) {
+  const leftRef  = useRef<HTMLTableElement>(null)
+  const rightRef = useRef<HTMLTableElement>(null)
+
+  // Sincronizza le altezze riga per riga dopo ogni render
+  useLayoutEffect(() => {
+    const left  = leftRef.current
+    const right = rightRef.current
+    if (!left || !right) return
+
+    const leftRows  = Array.from(left.querySelectorAll('tr'))
+    const rightRows = Array.from(right.querySelectorAll('tr'))
+
+    // Reset per ricalcolare le altezze naturali
+    leftRows.forEach((r)  => { r.style.height = '' })
+    rightRows.forEach((r) => { r.style.height = '' })
+
+    const count = Math.min(leftRows.length, rightRows.length)
+    for (let i = 0; i < count; i++) {
+      const max = Math.max(
+        leftRows[i].getBoundingClientRect().height,
+        rightRows[i].getBoundingClientRect().height,
+      )
+      leftRows[i].style.height  = `${max}px`
+      rightRows[i].style.height = `${max}px`
+    }
+  })
+
   return (
     <div className="flex rounded-xl border border-gray-200 bg-white overflow-hidden">
 
       {/* ── Colonna sinistra fissa (non scorre mai) ───────────────── */}
       <div className="shrink-0 border-r border-gray-200 z-10 shadow-[2px_0_6px_-4px_rgba(0,0,0,0.15)]">
-        <table className="border-separate border-spacing-0 text-sm w-[200px]">
+        <table ref={leftRef} className="border-separate border-spacing-0 text-sm w-[200px]">
           <thead>
             <tr>
               <th className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 text-left text-xs
@@ -457,7 +484,7 @@ function DesktopGrid({
           <tbody>
             {rows.map((row, ri) => (
               <tr key={`${row.type}-${row.id}`} className={cn(
-                'group h-11',
+                'group',
                 row.type === 'absence' ? 'bg-amber-50/40' : 'bg-white',
               )}>
                 <td className="border-b border-gray-100 px-3 py-2 align-middle w-[200px]">
@@ -493,7 +520,7 @@ function DesktopGrid({
 
       {/* ── Colonne giorni (scorrono orizzontalmente) ─────────────── */}
       <div className="overflow-x-auto flex-1">
-        <table className="border-separate border-spacing-0 text-sm">
+        <table ref={rightRef} className="border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
               {calendar.map((d) => (
@@ -514,7 +541,6 @@ function DesktopGrid({
           <tbody>
             {rows.map((row, ri) => (
               <tr key={`${row.type}-${row.id}`} className={cn(
-                'h-11',
                 row.type === 'absence' ? 'bg-amber-50/40' : '',
               )}>
                 {calendar.map((d) => {
