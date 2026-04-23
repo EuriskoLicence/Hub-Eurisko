@@ -250,7 +250,7 @@ export async function getUserOptions(): Promise<UserOption[]> {
     ))
     .where(eq(users.active, true))
     .orderBy(users.lastName, users.firstName)
-  return rows.map((u) => ({ id: u.id, fullName: `${u.firstName} ${u.lastName}`, email: u.email }))
+  return rows.map((u) => ({ id: u.id, fullName: `${u.lastName} ${u.firstName}`, email: u.email }))
 }
 
 /** Utenti assegnabili a una commessa (sezione TIMESHEET abilitata nel ruolo) */
@@ -268,7 +268,7 @@ export async function getTimesheetUserOptions(): Promise<UserOption[]> {
     ))
     .where(eq(users.active, true))
     .orderBy(users.lastName, users.firstName)
-  return rows.map((u) => ({ id: u.id, fullName: `${u.firstName} ${u.lastName}`, email: u.email }))
+  return rows.map((u) => ({ id: u.id, fullName: `${u.lastName} ${u.firstName}`, email: u.email }))
 }
 
 // ─── Prossimo codice disponibile ─────────────────────────────────────────────
