@@ -6,7 +6,7 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import {
   clients, projects, engagements, engagementUsers,
-  engagementTypes, users, roles,
+  engagementTypes, users, roles, roleProfiles, profileSections,
 } from '@/db/schema'
 import { requireSection, hasSection, HttpError } from '@/lib/permissions/auth-helpers'
 import { z } from 'zod'
@@ -238,9 +238,16 @@ export async function getEngagementTypeOptions(): Promise<EngagementTypeOption[]
 export async function getUserOptions(): Promise<UserOption[]> {
   const session = await auth()
   requireSection(session, 'CLIENTS_MANAGE')
+  // Solo utenti attivi il cui ruolo ha la sezione CLIENTS_MANAGE abilitata
   const rows = await db
-    .select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
+    .selectDistinct({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
     .from(users)
+    .innerJoin(roles,          eq(roles.id,                users.roleId))
+    .innerJoin(roleProfiles,   eq(roleProfiles.roleId,     roles.id))
+    .innerJoin(profileSections, and(
+      eq(profileSections.profileId,   roleProfiles.profileId),
+      eq(profileSections.sectionCode, 'CLIENTS_MANAGE'),
+    ))
     .where(eq(users.active, true))
     .orderBy(users.lastName, users.firstName)
   return rows.map((u) => ({ id: u.id, fullName: `${u.firstName} ${u.lastName}`, email: u.email }))
