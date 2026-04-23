@@ -347,112 +347,131 @@ function DesktopGrid({
   onRemoveRow:   (rowIdx: number) => void
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-      <table className="min-w-max border-separate border-spacing-0 text-sm">
-        <thead>
-          <tr className="border-b border-gray-200">
-            <th className="sticky left-0 z-10 bg-gray-50 px-4 py-2.5 text-left text-xs
-                           font-semibold text-gray-500 uppercase tracking-wider min-w-[200px]
-                           border-r border-gray-200">
-              Commessa
-            </th>
-            {calendar.map((d) => (
-              <th
-                key={d.dayOfMonth}
-                className={cn(
-                  'px-2 py-2 text-center min-w-[52px]',
-                  d.isWeekend || d.isHoliday ? 'bg-gray-100' : 'bg-gray-50',
-                )}
-              >
-                <div className="text-xs font-semibold text-gray-700">{d.dayOfMonth}</div>
-                <div className="text-[10px] text-gray-400">{d.dayAbbr}</div>
-                {d.isHoliday && d.holidayName && <HolidayBadge name={d.holidayName} />}
+    <div className="flex rounded-xl border border-gray-200 bg-white overflow-hidden">
+
+      {/* ── Colonna sinistra fissa (non scorre mai) ───────────────── */}
+      <div className="shrink-0 border-r border-gray-200 z-10 shadow-[2px_0_6px_-4px_rgba(0,0,0,0.15)]">
+        <table className="border-separate border-spacing-0 text-sm w-[200px]">
+          <thead>
+            <tr>
+              <th className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 text-left text-xs
+                             font-semibold text-gray-500 uppercase tracking-wider w-[200px]">
+                Commessa
               </th>
-            ))}
-          </tr>
-        </thead>
-
-        <tbody>
-          {rows.map((row, ri) => (
-            <tr key={row.id} className="border-b border-gray-100 group">
-              <td className="sticky left-0 z-10 bg-inherit border-r border-gray-200 px-3 py-2 min-w-[200px]">
-                <div className="flex items-center gap-1">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-gray-900 text-xs truncate">{row.label}</div>
-                    <div className="text-[10px] text-gray-400 truncate">{row.sublabel}</div>
-                  </div>
-                  {isEditable && (
-                    <FillDefaultButton onClick={() => onFillDefault(ri)} />
-                  )}
-                  {isEditable && (
-                    <button
-                      onClick={() => onRemoveRow(ri)}
-                      className="opacity-0 group-hover:opacity-100 rounded p-0.5 text-gray-300
-                                 hover:text-red-500 transition-all"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              </td>
-
-              {calendar.map((d) => {
-                const isOff = d.isWeekend || d.isHoliday
-                const h     = row.hours[d.dayOfMonth]
-                return (
-                  <td
-                    key={d.dayOfMonth}
-                    className={cn('px-1 py-1 text-center', isOff ? 'bg-gray-100' : '')}
-                  >
-                    {isEditable ? (
-                      <input
-                        type="number"
-                        min={1}
-                        max={24}
-                        step={1}
-                        value={h ?? ''}
-                        onChange={(e) => onCellChange(ri, d.dayOfMonth, e.target.value)}
-                        className={cn(
-                          'w-10 rounded border px-1 py-0.5 text-center text-base md:text-xs',
-                          'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400',
-                          '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none',
-                          isOff ? 'border-gray-300 bg-gray-50 text-gray-500' : 'border-gray-200',
-                        )}
-                      />
-                    ) : (
-                      <span className={cn('text-xs', h ? 'text-gray-800 font-medium' : 'text-gray-300')}>
-                        {h || '—'}
-                      </span>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, ri) => (
+              <tr key={row.id} className="group h-11 bg-white">
+                <td className="border-b border-gray-100 px-3 py-2 align-middle w-[200px]">
+                  <div className="flex items-center gap-1">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 text-xs truncate">{row.label}</div>
+                      <div className="text-[10px] text-gray-400 truncate">{row.sublabel}</div>
+                    </div>
+                    {isEditable && (
+                      <FillDefaultButton onClick={() => onFillDefault(ri)} />
                     )}
+                    {isEditable && (
+                      <button
+                        onClick={() => onRemoveRow(ri)}
+                        className="opacity-0 group-hover:opacity-100 rounded p-0.5 text-gray-300
+                                   hover:text-red-500 transition-all"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            <tr className="bg-gray-50">
+              <td className="border-t-2 border-gray-300 px-3 py-2 text-xs font-semibold text-gray-600 w-[200px]">
+                Totale ore / giorno
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── Colonne giorni (scorrono orizzontalmente) ─────────────── */}
+      <div className="overflow-x-auto flex-1">
+        <table className="border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              {calendar.map((d) => (
+                <th
+                  key={d.dayOfMonth}
+                  className={cn(
+                    'border-b border-gray-200 px-2 py-2 text-center min-w-[52px]',
+                    d.isWeekend || d.isHoliday ? 'bg-gray-100' : 'bg-gray-50',
+                  )}
+                >
+                  <div className="text-xs font-semibold text-gray-700">{d.dayOfMonth}</div>
+                  <div className="text-[10px] text-gray-400">{d.dayAbbr}</div>
+                  {d.isHoliday && d.holidayName && <HolidayBadge name={d.holidayName} />}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, ri) => (
+              <tr key={row.id} className="h-11">
+                {calendar.map((d) => {
+                  const isOff = d.isWeekend || d.isHoliday
+                  const h     = row.hours[d.dayOfMonth]
+                  return (
+                    <td
+                      key={d.dayOfMonth}
+                      className={cn('border-b border-gray-100 px-1 py-1 text-center align-middle', isOff ? 'bg-gray-100' : '')}
+                    >
+                      {isEditable ? (
+                        <input
+                          type="number"
+                          min={1}
+                          max={24}
+                          step={1}
+                          value={h ?? ''}
+                          onChange={(e) => onCellChange(ri, d.dayOfMonth, e.target.value)}
+                          className={cn(
+                            'w-10 rounded border px-1 py-0.5 text-center text-base md:text-xs',
+                            'focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400',
+                            '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none',
+                            isOff ? 'border-gray-300 bg-gray-50 text-gray-500' : 'border-gray-200',
+                          )}
+                        />
+                      ) : (
+                        <span className={cn('text-xs', h ? 'text-gray-800 font-medium' : 'text-gray-300')}>
+                          {h || '—'}
+                        </span>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+
+            {/* Riga totali */}
+            <tr className="bg-gray-50">
+              {calendar.map((d) => {
+                const t   = totals[d.dayOfMonth] ?? 0
+                const off = d.isWeekend || d.isHoliday
+                const color = off
+                  ? (t > 0 ? 'text-gray-500' : 'text-gray-300')
+                  : t > 0 ? 'text-gray-800' : 'text-gray-300'
+                return (
+                  <td key={d.dayOfMonth} className={cn('border-t-2 border-gray-300 px-1 py-1.5 text-center', off && 'bg-gray-100')}>
+                    <span className={cn('text-xs font-semibold', color)}>
+                      {t > 0 ? `${t}h` : '—'}
+                    </span>
                   </td>
                 )
               })}
             </tr>
-          ))}
+          </tbody>
+        </table>
+      </div>
 
-          {/* Riga totali */}
-          <tr className="border-t-2 border-gray-300 bg-gray-50">
-            <td className="sticky left-0 z-10 bg-gray-50 border-r border-gray-200 px-3 py-2
-                           text-xs font-semibold text-gray-600">
-              Totale ore / giorno
-            </td>
-            {calendar.map((d) => {
-              const t   = totals[d.dayOfMonth] ?? 0
-              const off = d.isWeekend || d.isHoliday
-              const color = off
-                ? (t > 0 ? 'text-gray-500' : 'text-gray-300')
-                : t > 0 ? 'text-gray-800' : 'text-gray-300'
-              return (
-                <td key={d.dayOfMonth} className={cn('px-1 py-1.5 text-center', off && 'bg-gray-100')}>
-                  <span className={cn('text-xs font-semibold', color)}>
-                    {t > 0 ? `${t}h` : '—'}
-                  </span>
-                </td>
-              )
-            })}
-          </tr>
-        </tbody>
-      </table>
     </div>
   )
 }
