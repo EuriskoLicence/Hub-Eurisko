@@ -235,18 +235,36 @@ export async function getEngagementTypeOptions(): Promise<EngagementTypeOption[]
   return rows
 }
 
+/** Utenti selezionabili come responsabile progetto (sezione CLIENTS_MANAGE) */
 export async function getUserOptions(): Promise<UserOption[]> {
   const session = await auth()
   requireSection(session, 'CLIENTS_MANAGE')
-  // Solo utenti attivi il cui ruolo ha la sezione CLIENTS_MANAGE abilitata
   const rows = await db
     .selectDistinct({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
     .from(users)
-    .innerJoin(roles,          eq(roles.id,                users.roleId))
-    .innerJoin(roleProfiles,   eq(roleProfiles.roleId,     roles.id))
+    .innerJoin(roles,           eq(roles.id,              users.roleId))
+    .innerJoin(roleProfiles,    eq(roleProfiles.roleId,   roles.id))
     .innerJoin(profileSections, and(
       eq(profileSections.profileId,   roleProfiles.profileId),
       eq(profileSections.sectionCode, 'CLIENTS_MANAGE'),
+    ))
+    .where(eq(users.active, true))
+    .orderBy(users.lastName, users.firstName)
+  return rows.map((u) => ({ id: u.id, fullName: `${u.firstName} ${u.lastName}`, email: u.email }))
+}
+
+/** Utenti assegnabili a una commessa (sezione TIMESHEET abilitata nel ruolo) */
+export async function getTimesheetUserOptions(): Promise<UserOption[]> {
+  const session = await auth()
+  requireSection(session, 'CLIENTS_MANAGE')
+  const rows = await db
+    .selectDistinct({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
+    .from(users)
+    .innerJoin(roles,           eq(roles.id,              users.roleId))
+    .innerJoin(roleProfiles,    eq(roleProfiles.roleId,   roles.id))
+    .innerJoin(profileSections, and(
+      eq(profileSections.profileId,   roleProfiles.profileId),
+      eq(profileSections.sectionCode, 'TIMESHEET'),
     ))
     .where(eq(users.active, true))
     .orderBy(users.lastName, users.firstName)

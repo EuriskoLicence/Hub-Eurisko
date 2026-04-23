@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { getProjectDetail, getEngagementTypeOptions, getUserOptions } from '../../../actions'
+import { getProjectDetail, getEngagementTypeOptions, getUserOptions, getTimesheetUserOptions } from '../../../actions'
 import { FolderOpen, Users, Tag, Building2 } from 'lucide-react'
 import { ProjectActions } from '@/components/clients/ProjectActions'
 import { EngagementCard } from '@/components/clients/EngagementCard'
@@ -30,9 +30,9 @@ export default async function ProjectDetailPage({ params, searchParams }: Props)
   // Solo il responsabile del progetto può creare/modificare commesse
   const canManageEngs = canManage && project.responsibleUserId === userId
 
-  const [engTypes, userOptions] = canManageEngs
-    ? await Promise.all([getEngagementTypeOptions(), getUserOptions()])
-    : await Promise.all([getEngagementTypeOptions(), Promise.resolve([])])
+  const [engTypes, userOptions, timesheetUserOptions] = canManage
+    ? await Promise.all([getEngagementTypeOptions(), getUserOptions(), getTimesheetUserOptions()])
+    : await Promise.all([getEngagementTypeOptions(), Promise.resolve([]), Promise.resolve([])])
 
   const onlyActive   = searchParams.onlyActive === '1'
   const engagements  = onlyActive
@@ -115,7 +115,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Props)
                 projectId={project.id}
                 clientId={project.clientId}
                 canManage={canManageEngs}
-                userOptions={userOptions}
+                userOptions={timesheetUserOptions}
               />
             ))}
           </div>
