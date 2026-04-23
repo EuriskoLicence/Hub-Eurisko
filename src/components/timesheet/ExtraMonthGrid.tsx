@@ -348,7 +348,7 @@ function DesktopGrid({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-      <table className="min-w-max border-collapse text-sm">
+      <table className="min-w-max border-separate border-spacing-0 text-sm">
         <thead>
           <tr className="border-b border-gray-200">
             <th className="sticky left-0 z-10 bg-gray-50 px-4 py-2.5 text-left text-xs

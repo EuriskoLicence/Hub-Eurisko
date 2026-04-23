@@ -442,7 +442,7 @@ function DesktopGrid({
 }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-      <table className="min-w-max border-collapse text-sm">
+      <table className="min-w-max border-separate border-spacing-0 text-sm">
         <thead>
           <tr className="border-b border-gray-200">
             {/* Colonna intestazione sticky */}
