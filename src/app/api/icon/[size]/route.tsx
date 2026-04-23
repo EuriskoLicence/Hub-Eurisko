@@ -4,10 +4,12 @@ import { NextRequest } from 'next/server'
 export const runtime = 'edge'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { size: string } },
 ) {
-  const size = params.size === '512' ? 512 : 192
+  const size    = params.size === '512' ? 512 : 192
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? `https://${req.headers.get('host')}`
+  const logoUrl = `${baseUrl}/favicon-64.png`
 
   return new ImageResponse(
     (
@@ -18,22 +20,17 @@ export async function GET(
           display:         'flex',
           alignItems:      'center',
           justifyContent:  'center',
-          background:      '#1e3a5f',
+          background:      '#ffffff',
           borderRadius:    size * 0.18,
         }}
       >
-        <span
-          style={{
-            color:      'white',
-            fontSize:   size * 0.62,
-            fontWeight: 'bold',
-            fontFamily: 'Arial, Helvetica, sans-serif',
-            lineHeight: 1,
-            marginTop:  size * 0.04,
-          }}
-        >
-          E
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logoUrl}
+          width={size * 0.72}
+          height={size * 0.72}
+          alt="Hub Eurisko"
+        />
       </div>
     ),
     { width: size, height: size },

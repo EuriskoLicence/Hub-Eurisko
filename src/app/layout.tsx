@@ -23,8 +23,9 @@ export const metadata: Metadata = {
   },
   icons: {
     icon:  [
-      { url: '/api/icon/192', sizes: '192x192', type: 'image/png' },
-      { url: '/api/icon/512', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon-64.png', sizes: '64x64',   type: 'image/png' },
+      { url: '/api/icon/192',   sizes: '192x192',  type: 'image/png' },
+      { url: '/api/icon/512',   sizes: '512x512',  type: 'image/png' },
     ],
     apple: [
       { url: '/api/icon/192', sizes: '192x192', type: 'image/png' },
