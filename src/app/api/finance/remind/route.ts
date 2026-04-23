@@ -4,10 +4,8 @@ import { handleAuthError, requireSection } from '@/lib/permissions/auth-helpers'
 import { getUsersWithoutSubmittedTimesheet } from '@/app/(dashboard)/finance/actions'
 import { sendTimesheetReminderEmail } from '@/lib/email'
 
-// Resend ha un limite di 5 richieste/secondo — aumentiamo il timeout Vercel
-// per gestire liste di utenti grandi (es. 34 utenti = ~7 batch = ~7s di attesa)
-export const maxDuration = 60
-
+// Resend ha un limite di 5 richieste/secondo.
+// Con batch da 5 + 1s di pausa: 34 utenti ≈ 8s, entro i 10s del piano Hobby Vercel.
 const BATCH_SIZE  = 5
 const BATCH_DELAY = 1050  // ms — leggermente sopra 1s per non sfiorare il limite
 
