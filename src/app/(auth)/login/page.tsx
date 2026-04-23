@@ -32,7 +32,7 @@ export default function LoginPage() {
       {/* Sfondo */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/image.jpg"
+        src="/sfondo.jpg"
         alt=""
         style={{
           position: 'fixed',
@@ -50,7 +50,7 @@ export default function LoginPage() {
         {/* Logo */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/eurisko.jpg"
+          src="/eurisko.png"
           alt="Eurisko"
           className="mx-auto mb-6 h-16 w-auto drop-shadow-md"
         />
