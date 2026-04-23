@@ -434,7 +434,7 @@ const EngagementSchema = z.object({
   engagementTypeId: z.string().uuid('Tipologia obbligatoria.'),
 })
 
-async function checkEngagementOwnership(projectId: string, userId: string, session: any): Promise<{ clientId: string } | { error: string }> {
+async function checkEngagementOwnership(projectId: string, userId: string): Promise<{ clientId: string } | { error: string }> {
   const projectRow = await db
     .select({ clientId: projects.clientId, responsibleUserId: projects.responsibleUserId })
     .from(projects)
@@ -443,10 +443,9 @@ async function checkEngagementOwnership(projectId: string, userId: string, sessi
 
   if (!projectRow.length) return { error: 'Progetto non trovato.' }
 
-  // Responsible user OR any CLIENTS_MANAGE user can manage engagements
-  const isResponsible = projectRow[0].responsibleUserId === userId
-  if (!isResponsible && !hasSection(session, 'CLIENTS_MANAGE')) {
-    return { error: 'Non sei il responsabile di questo progetto.' }
+  // Solo il responsabile del progetto può creare/modificare commesse
+  if (projectRow[0].responsibleUserId !== userId) {
+    return { error: 'Solo il responsabile del progetto può gestire le commesse.' }
   }
 
   return { clientId: projectRow[0].clientId }
@@ -464,7 +463,7 @@ export async function createEngagement(
     const parsed = EngagementSchema.safeParse(data)
     if (!parsed.success) return { ok: false, error: parsed.error.errors[0].message }
 
-    const ownerCheck = await checkEngagementOwnership(projectId, userId, session)
+    const ownerCheck = await checkEngagementOwnership(projectId, userId)
     if ('error' in ownerCheck) return { ok: false, error: ownerCheck.error }
 
     // Codice univoco dentro lo stesso progetto
@@ -510,7 +509,7 @@ export async function updateEngagement(
 
     if (!engRow.length) return { ok: false, error: 'Commessa non trovata.' }
 
-    const ownerCheck = await checkEngagementOwnership(engRow[0].projectId, userId, session)
+    const ownerCheck = await checkEngagementOwnership(engRow[0].projectId, userId)
     if ('error' in ownerCheck) return { ok: false, error: ownerCheck.error }
 
     await db
@@ -548,7 +547,7 @@ export async function assignUserToEngagement(
 
     if (!engRow.length) return { ok: false, error: 'Commessa non trovata.' }
 
-    const ownerCheck = await checkEngagementOwnership(engRow[0].projectId, requesterId, session)
+    const ownerCheck = await checkEngagementOwnership(engRow[0].projectId, requesterId)
     if ('error' in ownerCheck) return { ok: false, error: ownerCheck.error }
 
     await db
@@ -581,7 +580,7 @@ export async function removeUserFromEngagement(
 
     if (!engRow.length) return { ok: false, error: 'Commessa non trovata.' }
 
-    const ownerCheck = await checkEngagementOwnership(engRow[0].projectId, requesterId, session)
+    const ownerCheck = await checkEngagementOwnership(engRow[0].projectId, requesterId)
     if ('error' in ownerCheck) return { ok: false, error: ownerCheck.error }
 
     await db

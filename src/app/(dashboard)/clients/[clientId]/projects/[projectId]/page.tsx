@@ -27,7 +27,8 @@ export default async function ProjectDetailPage({ params, searchParams }: Props)
   const project      = await getProjectDetail(params.projectId)
   if (!project || project.clientId !== params.clientId) notFound()
 
-  const canManageEngs = canManage
+  // Solo il responsabile del progetto può creare/modificare commesse
+  const canManageEngs = canManage && project.responsibleUserId === userId
 
   const [engTypes, userOptions] = canManageEngs
     ? await Promise.all([getEngagementTypeOptions(), getUserOptions()])
