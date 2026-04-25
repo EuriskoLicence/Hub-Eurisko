@@ -60,7 +60,7 @@ export function ClientActions({ client }: Props) {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Nome cliente</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Ragione sociale</label>
                 <input
                   type="text"
                   value={name}

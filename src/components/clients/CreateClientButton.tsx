@@ -69,7 +69,7 @@ export function CreateClientButton() {
               )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Nome cliente <span className="text-red-500">*</span>
+                  Ragione sociale <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
