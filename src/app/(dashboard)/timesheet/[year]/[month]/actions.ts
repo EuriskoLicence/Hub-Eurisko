@@ -18,7 +18,6 @@ import { requireSection, HttpError } from '@/lib/permissions/auth-helpers'
 import { getMonthCalendar } from '@/lib/italian-calendar'
 import { sendAmendmentRequestedEmail, sendAmendmentReviewedEmail } from '@/lib/email'
 import { checkEngagementBudgets } from '@/lib/engagement-budget'
-import type { BudgetWarning } from '@/lib/engagement-budget'
 import type {
   TimesheetPageData,
   CalendarDaySerialized,
@@ -212,13 +211,11 @@ export async function getTimesheetYearData(year: number) {
 
 // ─── Salvataggio bozza ────────────────────────────────────────────────────────
 
-export type { BudgetWarning }
-
 export async function saveTimesheetEntries(
   year:    number,
   month:   number,
   entries: SaveEntry[],
-): Promise<{ ok: true; warnings: BudgetWarning[] } | { ok: false; error: string }> {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
     requireSection(session, 'TIMESHEET')
@@ -274,6 +271,19 @@ export async function saveTimesheetEntries(
       }
     }
 
+    // ── Controllo budget ore prima di salvare ──────────────────────────────
+    const newHoursMap: Record<string, number> = {}
+    for (const e of entries) {
+      if (e.engagementId) {
+        newHoursMap[e.engagementId] = (newHoursMap[e.engagementId] ?? 0) + e.hours
+      }
+    }
+    const budgetCheck = await checkEngagementBudgets({
+      newHours:        newHoursMap,
+      excludeRegular:  { userId, year, month },
+    })
+    if (!budgetCheck.ok) return budgetCheck
+
     // Salva: delete + insert (sequenziale — neon-http non supporta transazioni)
     await db
       .delete(timesheetEntries)
@@ -311,14 +321,7 @@ export async function saveTimesheetEntries(
 
     revalidatePath(`/timesheet/${year}/${month}`)
     revalidatePath('/timesheet')
-
-    // ── Controllo budget ore per commessa ──────────────────────────────────
-    const engagementIds = Array.from(new Set(
-      entries.filter((e) => e.engagementId != null).map((e) => e.engagementId!),
-    ))
-    const warnings = await checkEngagementBudgets(engagementIds)
-
-    return { ok: true, warnings }
+    return { ok: true }
   } catch (err) {
     if (err instanceof HttpError) return { ok: false, error: err.message }
     console.error('saveTimesheetEntries error:', err)
