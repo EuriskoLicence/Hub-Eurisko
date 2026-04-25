@@ -156,7 +156,6 @@ export function MonthGrid({
     setRows((prev) => {
       const next = [...prev]
       const row  = { ...next[rowIdx], hours: { ...next[rowIdx].hours } }
-      let skipped = false
 
       for (const cal of calendar) {
         if (!cal.isWorkingDay) continue
@@ -169,12 +168,11 @@ export function MonthGrid({
           .reduce((s, r) => s + Number(r.hours[d] || 0), 0)
 
         const remaining = 8 - others
-        if (remaining <= 0) { skipped = true; continue }
+        if (remaining <= 0) continue  // giorno già coperto da altre righe → skip silenzioso
         row.hours[d] = Math.min(hours, remaining)
       }
 
       next[rowIdx] = row
-      if (skipped) showToast('err', 'Alcuni giorni saltati: il limite di 8h giornaliere è già raggiunto')
       return next
     })
   }

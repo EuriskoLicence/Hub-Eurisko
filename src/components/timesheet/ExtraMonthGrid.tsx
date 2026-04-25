@@ -116,7 +116,6 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
     setRows((prev) => {
       const next = [...prev]
       const row  = { ...next[rowIdx], hours: { ...next[rowIdx].hours } }
-      let skipped = false
 
       for (const cal of calendar) {
         if (!cal.isWorkingDay) continue
@@ -130,12 +129,11 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
           return acc + otherRows.reduce((s, r) => s + Number(r.hours[dd] || 0), 0)
         }, 0)
 
-        if (others + hours > 24) { skipped = true; continue }
+        if (others + hours > 24) continue  // giorno già coperto → skip silenzioso
         row.hours[d] = hours
       }
 
       next[rowIdx] = row
-      if (skipped) showToast('err', 'Alcuni giorni saltati perché supererebbe 24h')
       return next
     })
   }
