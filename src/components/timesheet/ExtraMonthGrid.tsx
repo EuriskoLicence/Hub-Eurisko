@@ -17,6 +17,7 @@ import type {
   SaveEntry,
   CalendarDaySerialized,
 } from '@/types/timesheet'
+import type { BudgetWarning } from '@/app/(dashboard)/timesheet-extra/[year]/[month]/actions'
 
 const IT_MONTHS = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
                    'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
@@ -87,7 +88,7 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
   const isEditable    = !isFuture && currentStatus === 'draft'
 
   const [rows, setRows]           = useState<GridRow[]>(() => buildInitialRows(data))
-  const [toast, setToast]         = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [toast, setToast]         = useState<{ type: 'ok' | 'warn' | 'err'; msg: string } | null>(null)
   const [showAddRow, setShowAddRow] = useState(false)
 
   const days        = calendar.map((d) => d.dayOfMonth)
@@ -98,9 +99,15 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
-  function showToast(type: 'ok' | 'err', msg: string) {
+  function formatBudgetWarnings(warnings: BudgetWarning[]): string {
+    return warnings
+      .map((w) => `${w.engagementName} (${w.usedHours}h su ${w.budgetHours}h)`)
+      .join(', ')
+  }
+
+  function showToast(type: 'ok' | 'warn' | 'err', msg: string) {
     setToast({ type, msg })
-    setTimeout(() => setToast(null), 4000)
+    setTimeout(() => setToast(null), 6000)
   }
 
   function handleCellChange(rowIdx: number, day: number, value: string) {
@@ -164,8 +171,15 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
   function handleSave() {
     startTransition(async () => {
       const res = await saveTimesheetExtraEntries(year, month, rowsToEntries(rows))
-      if (res.ok) showToast('ok', 'Bozza salvata con successo.')
-      else        showToast('err', res.error)
+      if (res.ok) {
+        if (res.warnings.length > 0) {
+          showToast('warn', `Bozza salvata. ⚠️ Budget superato: ${formatBudgetWarnings(res.warnings)}`)
+        } else {
+          showToast('ok', 'Bozza salvata con successo.')
+        }
+      } else {
+        showToast('err', res.error)
+      }
     })
   }
 
@@ -175,8 +189,16 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
       const saveRes = await saveTimesheetExtraEntries(year, month, rowsToEntries(rows))
       if (!saveRes.ok) { showToast('err', saveRes.error); return }
       const submitRes = await submitTimesheetExtra(year, month)
-      if (submitRes.ok) { showToast('ok', 'Consuntivazione extra inviata definitivamente.'); router.refresh() }
-      else              showToast('err', submitRes.error)
+      if (submitRes.ok) {
+        if (saveRes.warnings.length > 0) {
+          showToast('warn', `Inviata definitivamente. ⚠️ Budget superato: ${formatBudgetWarnings(saveRes.warnings)}`)
+        } else {
+          showToast('ok', 'Consuntivazione extra inviata definitivamente.')
+        }
+        router.refresh()
+      } else {
+        showToast('err', submitRes.error)
+      }
     })
   }
 
@@ -321,8 +343,10 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
       {toast && (
         <div
           className={cn(
-            'fixed bottom-20 right-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg',
-            toast.type === 'ok' ? 'bg-green-600 text-white' : 'bg-red-600 text-white',
+            'fixed bottom-20 right-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg max-w-sm',
+            toast.type === 'ok'   ? 'bg-green-600 text-white' :
+            toast.type === 'warn' ? 'bg-amber-500 text-white' :
+                                    'bg-red-600 text-white',
           )}
         >
           {toast.msg}

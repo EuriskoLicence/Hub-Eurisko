@@ -17,6 +17,8 @@ import {
 import { requireSection, HttpError } from '@/lib/permissions/auth-helpers'
 import { getMonthCalendar } from '@/lib/italian-calendar'
 import { sendAmendmentRequestedEmail, sendAmendmentReviewedEmail } from '@/lib/email'
+import { checkEngagementBudgets } from '@/lib/engagement-budget'
+import type { BudgetWarning } from '@/lib/engagement-budget'
 import type {
   TimesheetPageData,
   CalendarDaySerialized,
@@ -210,11 +212,13 @@ export async function getTimesheetYearData(year: number) {
 
 // ─── Salvataggio bozza ────────────────────────────────────────────────────────
 
+export type { BudgetWarning }
+
 export async function saveTimesheetEntries(
   year:    number,
   month:   number,
   entries: SaveEntry[],
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; warnings: BudgetWarning[] } | { ok: false; error: string }> {
   try {
     const session = await auth()
     requireSection(session, 'TIMESHEET')
@@ -307,7 +311,14 @@ export async function saveTimesheetEntries(
 
     revalidatePath(`/timesheet/${year}/${month}`)
     revalidatePath('/timesheet')
-    return { ok: true }
+
+    // ── Controllo budget ore per commessa ──────────────────────────────────
+    const engagementIds = Array.from(new Set(
+      entries.filter((e) => e.engagementId != null).map((e) => e.engagementId!),
+    ))
+    const warnings = await checkEngagementBudgets(engagementIds)
+
+    return { ok: true, warnings }
   } catch (err) {
     if (err instanceof HttpError) return { ok: false, error: err.message }
     console.error('saveTimesheetEntries error:', err)

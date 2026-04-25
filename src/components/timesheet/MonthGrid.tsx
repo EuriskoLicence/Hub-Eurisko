@@ -19,6 +19,7 @@ import type {
   SaveEntry,
   CalendarDaySerialized,
 } from '@/types/timesheet'
+import type { BudgetWarning } from '@/app/(dashboard)/timesheet/[year]/[month]/actions'
 
 const IT_MONTHS = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
                    'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
@@ -113,7 +114,7 @@ export function MonthGrid({
 
   // Righe della griglia
   const [rows, setRows]             = useState<GridRow[]>(() => buildInitialRows(data))
-  const [toast, setToast]           = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const [toast, setToast]           = useState<{ type: 'ok' | 'warn' | 'err'; msg: string } | null>(null)
   const [showAmendment, setShowAmendment] = useState(false)
   const [showAddRow,    setShowAddRow]    = useState(false)
 
@@ -132,7 +133,13 @@ export function MonthGrid({
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
-  function showToast(type: 'ok' | 'err', msg: string) {
+  function formatBudgetWarnings(warnings: BudgetWarning[]): string {
+    return warnings
+      .map((w) => `${w.engagementName} (${w.usedHours}h su ${w.budgetHours}h)`)
+      .join(', ')
+  }
+
+  function showToast(type: 'ok' | 'warn' | 'err', msg: string) {
     setToast({ type, msg })
     setTimeout(() => setToast(null), 4000)
   }
@@ -206,8 +213,15 @@ export function MonthGrid({
     startTransition(async () => {
       const entries = rowsToEntries(rows)
       const res     = await saveTimesheetEntries(year, month, entries)
-      if (res.ok) showToast('ok', 'Bozza salvata con successo.')
-      else        showToast('err', res.error)
+      if (res.ok) {
+        if (res.warnings.length > 0) {
+          showToast('warn', `Bozza salvata. ⚠️ Budget superato: ${formatBudgetWarnings(res.warnings)}`)
+        } else {
+          showToast('ok', 'Bozza salvata con successo.')
+        }
+      } else {
+        showToast('err', res.error)
+      }
     })
   }
 
@@ -221,8 +235,16 @@ export function MonthGrid({
       const saveRes = await saveTimesheetEntries(year, month, rowsToEntries(rows))
       if (!saveRes.ok) { showToast('err', saveRes.error); return }
       const submitRes = await submitTimesheet(year, month)
-      if (submitRes.ok) { showToast('ok', 'Consuntivazione inviata definitivamente.'); router.refresh() }
-      else              showToast('err', submitRes.error)
+      if (submitRes.ok) {
+        if (saveRes.warnings.length > 0) {
+          showToast('warn', `Inviata definitivamente. ⚠️ Budget superato: ${formatBudgetWarnings(saveRes.warnings)}`)
+        } else {
+          showToast('ok', 'Consuntivazione inviata definitivamente.')
+        }
+        router.refresh()
+      } else {
+        showToast('err', submitRes.error)
+      }
     })
   }
 
@@ -415,8 +437,10 @@ export function MonthGrid({
       {toast && (
         <div
           className={cn(
-            'fixed bottom-20 right-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg',
-            toast.type === 'ok' ? 'bg-green-600 text-white' : 'bg-red-600 text-white',
+            'fixed bottom-20 right-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg max-w-sm',
+            toast.type === 'ok'   ? 'bg-green-600 text-white' :
+            toast.type === 'warn' ? 'bg-amber-500 text-white' :
+                                    'bg-red-600 text-white',
           )}
         >
           {toast.msg}
