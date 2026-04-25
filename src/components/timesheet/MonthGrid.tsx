@@ -632,6 +632,38 @@ function MobileView({
         />
       )}
 
+      {/* Pannello righe attive: fill + rimuovi */}
+      {isEditable && rows.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          {rows.map((row, ri) => (
+            <div
+              key={`${row.type}-${row.id}`}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 last:border-0',
+                row.type === 'absence' ? 'bg-amber-50/40' : '',
+              )}
+            >
+              <div className={cn(
+                'w-2 h-2 rounded-full shrink-0',
+                row.type === 'absence' ? 'bg-amber-400' : 'bg-blue-400',
+              )} />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-gray-900 truncate">{row.label}</div>
+                <div className="text-[10px] text-gray-400 truncate">{row.sublabel}</div>
+              </div>
+              <FillDefaultButton onClick={(h) => onFillDefault(ri, h)} />
+              <button
+                type="button"
+                onClick={() => onRemoveRow(ri)}
+                className="rounded p-1 text-gray-300 hover:text-red-500 transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {calendar.map((d) => {
         const isOff   = d.isWeekend || d.isHoliday
         const total   = totals[d.dayOfMonth] ?? 0
