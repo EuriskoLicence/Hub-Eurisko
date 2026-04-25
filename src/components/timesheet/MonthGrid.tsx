@@ -152,7 +152,7 @@ export function MonthGrid({
     })
   }
 
-  function handleFillDefault(rowIdx: number) {
+  function handleFillDefault(rowIdx: number, hours: number) {
     setRows((prev) => {
       const next = [...prev]
       const row  = { ...next[rowIdx], hours: { ...next[rowIdx].hours } }
@@ -170,7 +170,7 @@ export function MonthGrid({
 
         const remaining = 8 - others
         if (remaining <= 0) { skipped = true; continue }
-        row.hours[d] = remaining
+        row.hours[d] = Math.min(hours, remaining)
       }
 
       next[rowIdx] = row
@@ -437,7 +437,7 @@ function DesktopGrid({
   totals:        Record<number, number>
   isEditable:    boolean
   onCellChange:  (rowIdx: number, day: number, value: string) => void
-  onFillDefault: (rowIdx: number) => void
+  onFillDefault: (rowIdx: number, hours: number) => void
   onRemoveRow:   (rowIdx: number) => void
 }) {
   const leftRef  = useRef<HTMLTableElement>(null)
@@ -493,8 +493,8 @@ function DesktopGrid({
                       <div className="font-medium text-gray-900 text-xs truncate">{row.label}</div>
                       <div className="text-[10px] text-gray-400 truncate">{row.sublabel}</div>
                     </div>
-                    {isEditable && row.type === 'engagement' && (
-                      <FillDefaultButton onClick={() => onFillDefault(ri)} />
+                    {isEditable && (
+                      <FillDefaultButton onClick={(h) => onFillDefault(ri, h)} />
                     )}
                     {isEditable && (
                       <button
@@ -615,7 +615,7 @@ function MobileView({
   engagements:   { id: string; name: string; code: string; clientName: string }[]
   absences:      { id: string; shortCode: string | null; label: string }[]
   onCellChange:  (rowIdx: number, day: number, value: string) => void
-  onFillDefault: (rowIdx: number) => void
+  onFillDefault: (rowIdx: number, hours: number) => void
   onRemoveRow:   (rowIdx: number) => void
   onAddRow:      (type: 'engagement' | 'absence', id: string) => void
 }) {

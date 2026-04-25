@@ -112,7 +112,7 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
     })
   }
 
-  function handleFillDefault(rowIdx: number) {
+  function handleFillDefault(rowIdx: number, hours: number) {
     setRows((prev) => {
       const next = [...prev]
       const row  = { ...next[rowIdx], hours: { ...next[rowIdx].hours } }
@@ -130,8 +130,8 @@ export function ExtraMonthGrid({ data }: { data: TimesheetPageData }) {
           return acc + otherRows.reduce((s, r) => s + Number(r.hours[dd] || 0), 0)
         }, 0)
 
-        if (others + 8 > 24) { skipped = true; continue }
-        row.hours[d] = 8
+        if (others + hours > 24) { skipped = true; continue }
+        row.hours[d] = hours
       }
 
       next[rowIdx] = row
@@ -343,7 +343,7 @@ function DesktopGrid({
   totals:        Record<number, number>
   isEditable:    boolean
   onCellChange:  (rowIdx: number, day: number, value: string) => void
-  onFillDefault: (rowIdx: number) => void
+  onFillDefault: (rowIdx: number, hours: number) => void
   onRemoveRow:   (rowIdx: number) => void
 }) {
   const leftRef  = useRef<HTMLTableElement>(null)
@@ -397,7 +397,7 @@ function DesktopGrid({
                       <div className="text-[10px] text-gray-400 truncate">{row.sublabel}</div>
                     </div>
                     {isEditable && (
-                      <FillDefaultButton onClick={() => onFillDefault(ri)} />
+                      <FillDefaultButton onClick={(h) => onFillDefault(ri, h)} />
                     )}
                     {isEditable && (
                       <button
@@ -515,7 +515,7 @@ function MobileView({
   isEditable:    boolean
   engagements:   { id: string; name: string; code: string; clientName: string }[]
   onCellChange:  (rowIdx: number, day: number, value: string) => void
-  onFillDefault: (rowIdx: number) => void
+  onFillDefault: (rowIdx: number, hours: number) => void
   onRemoveRow:   (rowIdx: number) => void
   onAddRow:      (id: string) => void
 }) {
