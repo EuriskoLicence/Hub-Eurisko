@@ -206,6 +206,7 @@ function UserModal({
     active:               user?.active               ?? true,
     tariffaKm:            user?.tariffaKm            ?? '',
     excludeFromTimesheet: user?.excludeFromTimesheet ?? false,
+    partTime:             user?.partTime             ?? false,
   })
 
   function set(k: keyof typeof form, v: any) { setForm((p) => ({ ...p, [k]: v })); setError('') }
@@ -224,6 +225,7 @@ function UserModal({
           active:               form.active,
           tariffaKm:            form.tariffaKm || null,
           excludeFromTimesheet: form.excludeFromTimesheet,
+          partTime:             form.partTime,
         })
       } else {
         res = await createUser({
@@ -306,6 +308,13 @@ function UserModal({
                   className="h-4 w-4 rounded border-gray-300 text-amber-500" disabled={isPending} />
                 <label htmlFor="u-excl-ts" className="text-sm text-gray-700">
                   Escludi da obbligo consuntivazione
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input id="u-part-time" type="checkbox" checked={form.partTime} onChange={(e) => set('partTime', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-500" disabled={isPending} />
+                <label htmlFor="u-part-time" className="text-sm text-gray-700">
+                  Part time
                 </label>
               </div>
             </div>

@@ -31,6 +31,7 @@ export type UserRow = {
   tempPassword:         string | null
   tariffaKm:            string | null
   excludeFromTimesheet: boolean
+  partTime:             boolean
 }
 
 export type RoleOption = { id: string; name: string }
@@ -53,6 +54,7 @@ export async function getUserList(): Promise<{ users: UserRow[]; roles: RoleOpti
         tempPassword:         users.tempPassword,
         tariffaKm:            users.tariffaKm,
         excludeFromTimesheet: users.excludeFromTimesheet,
+        partTime:             users.partTime,
       })
       .from(users)
       .leftJoin(roles, eq(roles.id, users.roleId))
@@ -73,6 +75,7 @@ export async function getUserList(): Promise<{ users: UserRow[]; roles: RoleOpti
       tempPassword:         u.tempPassword ?? null,
       tariffaKm:            u.tariffaKm   ?? null,
       excludeFromTimesheet: u.excludeFromTimesheet,
+      partTime:             u.partTime,
     })),
     roles: roleRows,
   }
@@ -134,7 +137,7 @@ export async function createUser(data: {
 
 export async function updateUser(
   id: string,
-  data: { firstName?: string; lastName?: string; email?: string; roleId?: string | null; active?: boolean; newPassword?: string; tariffaKm?: string | null; excludeFromTimesheet?: boolean },
+  data: { firstName?: string; lastName?: string; email?: string; roleId?: string | null; active?: boolean; newPassword?: string; tariffaKm?: string | null; excludeFromTimesheet?: boolean; partTime?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -147,6 +150,7 @@ export async function updateUser(
     if (data.roleId !== undefined)  set.roleId   = data.roleId
     if (data.active !== undefined)               set.active               = data.active
     if (data.excludeFromTimesheet !== undefined) set.excludeFromTimesheet = data.excludeFromTimesheet
+    if (data.partTime !== undefined)             set.partTime             = data.partTime
     if (data.tariffaKm !== undefined) {
       if (data.tariffaKm === '' || data.tariffaKm === null) {
         set.tariffaKm = null
@@ -375,7 +379,7 @@ export async function updateRole(
 // ─── ABSENCE TYPES ────────────────────────────────────────────────────────────
 
 export type AbsenceTypeRow = {
-  id: string; shortCode: string | null; label: string; active: boolean
+  id: string; shortCode: string | null; label: string; active: boolean; partTimeOnly: boolean
 }
 
 export async function getAbsenceTypes(): Promise<AbsenceTypeRow[]> {
@@ -387,7 +391,7 @@ export async function getAbsenceTypes(): Promise<AbsenceTypeRow[]> {
 const SHORT_CODE_RE = /^[A-Z0-9]{2}$/
 
 export async function createAbsenceType(
-  data: { shortCode: string; label: string },
+  data: { shortCode: string; label: string; partTimeOnly?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -397,9 +401,10 @@ export async function createAbsenceType(
     if (!SHORT_CODE_RE.test(sc)) return { ok: false, error: 'La codifica deve essere esattamente 2 caratteri alfanumerici (A-Z, 0-9).' }
 
     await db.insert(absenceTypes).values({
-      shortCode: sc,
-      label:     data.label.trim(),
-      active:    true,
+      shortCode:    sc,
+      label:        data.label.trim(),
+      active:       true,
+      partTimeOnly: data.partTimeOnly ?? false,
     })
     revalidatePath('/admin/absences')
     return { ok: true }
@@ -412,7 +417,7 @@ export async function createAbsenceType(
 
 export async function updateAbsenceType(
   id: string,
-  data: { shortCode?: string; label?: string; active?: boolean },
+  data: { shortCode?: string; label?: string; active?: boolean; partTimeOnly?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()

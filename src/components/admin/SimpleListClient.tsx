@@ -8,7 +8,7 @@ import {
   createEngagementType, updateEngagementType,
 } from '@/app/(dashboard)/admin/actions'
 
-type Item = { id: string; code?: string; shortCode?: string | null; label: string; active: boolean }
+type Item = { id: string; code?: string; shortCode?: string | null; label: string; active: boolean; partTimeOnly?: boolean }
 type Type = 'absences' | 'engagement-types'
 
 type Props = { type: Type; items: Item[] }
@@ -38,6 +38,9 @@ export function SimpleListClient({ type, items }: Props) {
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-24">Cod. breve</th>
               )}
               <th className="text-left px-4 py-3 font-medium text-gray-600">Label</th>
+              {type === 'absences' && (
+                <th className="text-center px-4 py-3 font-medium text-gray-600 w-24">Solo PT</th>
+              )}
               <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Attivo</th>
               <th className="w-10" />
             </tr>
@@ -61,6 +64,14 @@ export function SimpleListClient({ type, items }: Props) {
                   </td>
                 )}
                 <td className="px-4 py-3 text-gray-900">{item.label}</td>
+                {type === 'absences' && (
+                  <td className="px-4 py-3 text-center">
+                    {item.partTimeOnly
+                      ? <CheckCircle2 className="h-4 w-4 text-blue-500 inline" />
+                      : <span className="text-xs text-gray-300">—</span>
+                    }
+                  </td>
+                )}
                 <td className="px-4 py-3 text-center">
                   {item.active
                     ? <CheckCircle2 className="h-4 w-4 text-green-500 inline" />
@@ -93,10 +104,11 @@ export function SimpleListClient({ type, items }: Props) {
 function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: () => void }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [shortCode, setShortCode] = useState(item?.shortCode ?? '')
-  const [label,     setLabel]     = useState(item?.label     ?? '')
-  const [active,    setActive]    = useState(item?.active    ?? true)
-  const [error,     setError]     = useState('')
+  const [shortCode,    setShortCode]    = useState(item?.shortCode    ?? '')
+  const [label,        setLabel]        = useState(item?.label        ?? '')
+  const [active,       setActive]       = useState(item?.active       ?? true)
+  const [partTimeOnly, setPartTimeOnly] = useState(item?.partTimeOnly ?? false)
+  const [error,        setError]        = useState('')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -105,8 +117,8 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
       let res
       if (type === 'absences') {
         res = item
-          ? await updateAbsenceType(item.id, { shortCode, label, active })
-          : await createAbsenceType({ shortCode, label })
+          ? await updateAbsenceType(item.id, { shortCode, label, active, partTimeOnly })
+          : await createAbsenceType({ shortCode, label, partTimeOnly })
       } else {
         res = item
           ? await updateEngagementType(item.id, { name: label, active })
@@ -163,6 +175,15 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
                          focus:outline-none focus:ring-2 focus:ring-gray-500" />
           </div>
 
+          {type === 'absences' && (
+            <div className="flex items-center gap-2">
+              <input id="item-part-time-only" type="checkbox" checked={partTimeOnly} onChange={(e) => setPartTimeOnly(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-500" />
+              <label htmlFor="item-part-time-only" className="text-sm text-gray-700">
+                Solo utenti part time
+              </label>
+            </div>
+          )}
           {item && (
             <div className="flex items-center gap-2">
               <input id="item-active" type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)}

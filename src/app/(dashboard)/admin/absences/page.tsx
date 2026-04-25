@@ -27,7 +27,7 @@ export default async function AdminAbsencesPage() {
 
       <SimpleListClient
         type="absences"
-        items={items.map((i) => ({ id: i.id, shortCode: i.shortCode, label: i.label, active: i.active }))}
+        items={items.map((i) => ({ id: i.id, shortCode: i.shortCode, label: i.label, active: i.active, partTimeOnly: i.partTimeOnly }))}
       />
     </div>
   )

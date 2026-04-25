@@ -92,6 +92,7 @@ export const users = pgTable('users', {
   tempPassword:       text('temp_password'),
   tariffaKm:              numeric('tariffa_km', { precision: 6, scale: 4 }), // tariffa rimborso km (facoltativa)
   excludeFromTimesheet:   boolean('exclude_from_timesheet').notNull().default(false),
+  partTime:               boolean('part_time').notNull().default(false),
   createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -168,10 +169,11 @@ export const italianHolidays = pgTable('italian_holidays', {
 // ─── Consuntivazione ─────────────────────────────────────────────────────────
 
 export const absenceTypes = pgTable('absence_types', {
-  id:        uuid('id').primaryKey().defaultRandom(),
-  shortCode: text('short_code').unique(),  // codifica 2 caratteri alfanumerici, es. "FE"
-  label:     text('label').notNull(),
-  active:    boolean('active').notNull().default(true),
+  id:           uuid('id').primaryKey().defaultRandom(),
+  shortCode:    text('short_code').unique(),  // codifica 2 caratteri alfanumerici, es. "FE"
+  label:        text('label').notNull(),
+  active:       boolean('active').notNull().default(true),
+  partTimeOnly: boolean('part_time_only').notNull().default(false),
 })
 
 export const timesheetEntries = pgTable('timesheet_entries', {

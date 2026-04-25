@@ -115,11 +115,20 @@ export async function getTimesheetPageData(
       ),
     )
 
-  // Voci assenza attive
-  const absRows = await db
+  // Flag part time dell'utente (per filtrare le voci assenza)
+  const userRow = await db
+    .select({ partTime: users.partTime })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1)
+  const isPartTime = userRow[0]?.partTime ?? false
+
+  // Voci assenza attive — quelle con partTimeOnly=true sono visibili solo ai part time
+  const allAbsRows = await db
     .select()
     .from(absenceTypes)
     .where(eq(absenceTypes.active, true))
+  const absRows = allAbsRows.filter((a) => !a.partTimeOnly || isPartTime)
 
   // Calendario del mese (con festività dal DB)
   const calDays = await getMonthCalendar(year, month)
