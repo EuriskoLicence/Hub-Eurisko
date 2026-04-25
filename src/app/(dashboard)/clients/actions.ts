@@ -36,6 +36,7 @@ export type EngagementDetail = {
   name:             string
   code:             string
   active:           boolean
+  totalHours:       number
   engagementTypeId: string
   engagementTypeName: string
   assignedUsers:    { userId: string; fullName: string; email: string }[]
@@ -173,6 +174,7 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
       name:               engagements.name,
       code:               engagements.code,
       active:             engagements.active,
+      totalHours:         engagements.totalHours,
       engagementTypeId:   engagements.engagementTypeId,
       engTypeName:        engagementTypes.name,
     })
@@ -221,6 +223,7 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
       name:               e.name,
       code:               e.code,
       active:             e.active,
+      totalHours:         e.totalHours,
       engagementTypeId:   e.engagementTypeId,
       engagementTypeName: e.engTypeName,
       assignedUsers:      assignedByEng.get(e.id) ?? [],
@@ -450,6 +453,7 @@ export async function updateProject(
 const EngagementSchema = z.object({
   name:             z.string().min(2, 'Il nome è obbligatorio.').max(100),
   engagementTypeId: z.string().uuid('Tipologia obbligatoria.'),
+  totalHours:       z.number().int().positive().optional(),
 })
 
 async function checkEngagementOwnership(projectId: string, userId: string): Promise<{ clientId: string } | { error: string }> {
@@ -471,7 +475,7 @@ async function checkEngagementOwnership(projectId: string, userId: string): Prom
 
 export async function createEngagement(
   projectId: string,
-  data: { name: string; engagementTypeId: string },
+  data: { name: string; engagementTypeId: string; totalHours?: number },
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -496,6 +500,7 @@ export async function createEngagement(
         code,
         projectId,
         engagementTypeId: parsed.data.engagementTypeId,
+        totalHours:       parsed.data.totalHours ?? 999999,
         active:           true,
       })
       .returning({ id: engagements.id })
@@ -512,7 +517,7 @@ export async function createEngagement(
 
 export async function updateEngagement(
   id: string,
-  data: { name?: string; active?: boolean },
+  data: { name?: string; active?: boolean; totalHours?: number },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -535,6 +540,7 @@ export async function updateEngagement(
       .set({
         ...(data.name && { name: data.name.trim() }),
         ...(data.active !== undefined && { active: data.active }),
+        ...(data.totalHours !== undefined && { totalHours: data.totalHours }),
       })
       .where(eq(engagements.id, id))
 

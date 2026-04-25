@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Users, UserPlus, UserMinus, Pencil, ChevronDown, X } from 'lucide-react'
+import { Tag, Users, UserPlus, UserMinus, Pencil, ChevronDown, X, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { updateEngagement, assignUserToEngagement, removeUserFromEngagement } from '@/app/(dashboard)/clients/actions'
 import type { EngagementDetail, UserOption } from '@/app/(dashboard)/clients/actions'
@@ -21,6 +21,7 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
   const [editOpen,    setEditOpen]    = useState(false)
   const [name,        setName]        = useState(engagement.name)
   const [active,      setActive]      = useState(engagement.active)
+  const [totalHours,  setTotalHours]  = useState(String(engagement.totalHours))
   const [error,       setError]       = useState('')
   const [isPending,   startTransition] = useTransition()
   const [addUserId,   setAddUserId]   = useState('')
@@ -30,7 +31,11 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
     if (!name.trim()) { setError('Il nome è obbligatorio.'); return }
     setError('')
     startTransition(async () => {
-      const res = await updateEngagement(engagement.id, { name, active })
+      const res = await updateEngagement(engagement.id, {
+        name,
+        active,
+        totalHours: parseInt(totalHours) || 999999,
+      })
       if (res.ok) { setEditOpen(false); router.refresh() }
       else setError(res.error)
     })
@@ -81,12 +86,17 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
             </span>
             <span className="text-xs font-mono text-gray-400">{engagement.code}</span>
           </div>
-          <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
+          <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5 flex-wrap">
             <span>{engagement.engagementTypeName}</span>
             <span>·</span>
             <span className="flex items-center gap-1">
               <Users className="h-3 w-3" />
               {engagement.assignedUsers.length} assegnati
+            </span>
+            <span>·</span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {engagement.totalHours.toLocaleString('it-IT')}h
             </span>
           </div>
         </div>
@@ -188,6 +198,22 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
                                  focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Totale ore
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={totalHours}
+                      onChange={(e) => { setTotalHours(e.target.value); setError('') }}
+                      disabled={isPending}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50
+                                 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
                   <div className="flex items-center gap-2">
                     <input
                       id={`eng-active-${engagement.id}`}
@@ -202,7 +228,7 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => { setEditOpen(false); setName(engagement.name); setActive(engagement.active); setError('') }}
+                      onClick={() => { setEditOpen(false); setName(engagement.name); setActive(engagement.active); setTotalHours(String(engagement.totalHours)); setError('') }}
                       disabled={isPending}
                       className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >

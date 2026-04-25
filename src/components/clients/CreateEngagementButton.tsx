@@ -17,6 +17,7 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
   const [name,            setName]            = useState('')
   const [nextCode,        setNextCode]        = useState('')
   const [engTypeId,       setEngTypeId]       = useState(engagementTypes[0]?.id ?? '')
+  const [totalHours,      setTotalHours]      = useState('999999')
   const [error,           setError]           = useState('')
   const [isPending,       startTransition]    = useTransition()
   const [isLoadingCode,   startLoadCode]      = useTransition()
@@ -35,7 +36,11 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
     if (!engTypeId)   { setError('La tipologia è obbligatoria.'); return }
     setError('')
     startTransition(async () => {
-      const res = await createEngagement(projectId, { name, engagementTypeId: engTypeId })
+      const res = await createEngagement(projectId, {
+        name,
+        engagementTypeId: engTypeId,
+        totalHours: parseInt(totalHours) || 999999,
+      })
       if (res.ok) {
         setOpen(false)
         setName('')
@@ -52,6 +57,7 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
     setNextCode('')
     setError('')
     setEngTypeId(engagementTypes[0]?.id ?? '')
+    setTotalHours('999999')
   }
 
   return (
@@ -128,6 +134,25 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Totale ore <span className="text-gray-400 font-normal">(budget ore commessa)</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={totalHours}
+                  onChange={(e) => { setTotalHours(e.target.value); setError('') }}
+                  disabled={isPending}
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm
+                             focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent
+                             disabled:opacity-50
+                             [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">Default 999.999 (illimitato).</p>
               </div>
 
               <div className="flex gap-3">

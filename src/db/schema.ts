@@ -139,6 +139,7 @@ export const engagements = pgTable('engagements', {
   name:             text('name').notNull(),
   code:             text('code').notNull(), // codice sequenziale 4 cifre, univoco per progetto
   notes:            text('notes'),
+  totalHours:       integer('total_hours').notNull().default(999999),
   active:           boolean('active').notNull().default(true),
   createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
