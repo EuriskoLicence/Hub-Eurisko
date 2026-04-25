@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
       for (const l of lines) {
         const meta   = reportMeta.get(l.reportId)!
         const kmRate = meta.tariffaKm ?? null
-        const key    = `${meta.userId}|${kmRate ?? ''}`
+        const key    = meta.userId
         const agg    = userAggMap.get(key) ?? {
           firstName: meta.firstName,
           lastName:  meta.lastName,
@@ -77,6 +77,8 @@ export async function GET(req: NextRequest) {
           total:     0,
           tariffaKm: kmRate,
         }
+        // Mantieni la prima tariffa km non nulla trovata
+        if (!agg.tariffaKm && kmRate) agg.tariffaKm = kmRate
         const eur = parseFloat(l.amountEur)
         agg.total += eur
         if (l.isKmBased) agg.kmTotal += eur
