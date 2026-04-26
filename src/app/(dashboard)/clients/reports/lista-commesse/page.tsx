@@ -150,40 +150,40 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
         </div>
       ) : (
         <div className="rounded-xl border border-gray-200 bg-white overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Cod. cliente</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Cliente</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Cod. progetto</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Progetto</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden lg:table-cell">Responsabile</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Cod. commessa</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Commessa</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Attiva</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Fine validità</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Ore budget</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Ore consuntivate</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Ore rimanenti</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Cod. cl.</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Cliente</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Cod. pr.</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Progetto</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap hidden xl:table-cell">Responsabile</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Cod. comm.</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Commessa</th>
+                <th className="text-center px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Attiva</th>
+                <th className="text-center px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Scadenza</th>
+                <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Budget</th>
+                <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Consunt.</th>
+                <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Rimanenti</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {rows.map((r) => (
                 <tr key={r.engagementId} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.clientCode}</td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{r.clientName}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.projectCode}</td>
-                  <td className="px-4 py-3 text-gray-700">{r.projectName}</td>
-                  <td className="px-4 py-3 text-gray-600 hidden lg:table-cell">{r.responsibleName}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.engagementCode}</td>
-                  <td className="px-4 py-3 text-gray-700">{r.engagementName}</td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-2 py-2.5 font-mono text-gray-500 whitespace-nowrap">{r.clientCode}</td>
+                  <td className="px-2 py-2.5 font-medium text-gray-900 max-w-[140px] truncate" title={r.clientName}>{r.clientName}</td>
+                  <td className="px-2 py-2.5 font-mono text-gray-500 whitespace-nowrap">{r.projectCode}</td>
+                  <td className="px-2 py-2.5 text-gray-700 max-w-[150px] truncate" title={r.projectName}>{r.projectName}</td>
+                  <td className="px-2 py-2.5 text-gray-600 hidden xl:table-cell max-w-[130px] truncate" title={r.responsibleName}>{r.responsibleName}</td>
+                  <td className="px-2 py-2.5 font-mono text-gray-500 whitespace-nowrap">{r.engagementCode}</td>
+                  <td className="px-2 py-2.5 text-gray-700 max-w-[150px] truncate" title={r.engagementName}>{r.engagementName}</td>
+                  <td className="px-2 py-2.5 text-center">
                     {r.active
-                      ? <CheckCircle2 className="h-4 w-4 text-green-500 inline" />
-                      : <XCircle      className="h-4 w-4 text-gray-300 inline" />
+                      ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 inline" />
+                      : <XCircle      className="h-3.5 w-3.5 text-gray-300 inline" />
                     }
                   </td>
-                  <td className="px-4 py-3 text-center text-sm tabular-nums">
+                  <td className="px-2 py-2.5 text-center tabular-nums whitespace-nowrap">
                     {r.validUntil === '2999-12-31'
                       ? <span className="text-gray-300">—</span>
                       : <span className={cn(
@@ -193,13 +193,13 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
                         </span>
                     }
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-700 tabular-nums">
+                  <td className="px-2 py-2.5 text-right text-gray-700 tabular-nums whitespace-nowrap">
                     <HoursCell value={r.totalHours} />
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-700 tabular-nums">
+                  <td className="px-2 py-2.5 text-right text-gray-700 tabular-nums whitespace-nowrap">
                     {r.workedHours}h
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="px-2 py-2.5 text-right tabular-nums whitespace-nowrap">
                     <RemainingCell value={r.remainingHours} />
                   </td>
                 </tr>
