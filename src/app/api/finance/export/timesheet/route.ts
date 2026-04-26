@@ -79,8 +79,8 @@ export async function GET(req: NextRequest) {
 
     const userMap = new Map(activeUsers.map((u) => [u.id, `${u.lastName} ${u.firstName}`]))
 
-    // Filtra le entries degli utenti attivi con consuntivazione inviata
-    const filteredEntries = entries.filter((e) => submittedSet.has(e.userId))
+    // Filtra le entries degli utenti con obbligo di consuntivazione E consuntivazione inviata
+    const filteredEntries = entries.filter((e) => userMap.has(e.userId) && submittedSet.has(e.userId))
 
     // ── Build worksheet ────────────────────────────────────────────────────────
     const periodLabel = `${IT_MONTHS[month - 1]} ${year}`
