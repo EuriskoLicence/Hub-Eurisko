@@ -35,7 +35,7 @@ export type EngagementDetail = {
   id:               string
   name:             string
   code:             string
-  active:           boolean
+  active:           boolean  // derivato da validUntil >= oggi
   totalHours:       number
   validUntil:       string   // YYYY-MM-DD
   engagementTypeId: string
@@ -174,7 +174,6 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
       id:                 engagements.id,
       name:               engagements.name,
       code:               engagements.code,
-      active:             engagements.active,
       totalHours:         engagements.totalHours,
       validUntil:         engagements.validUntil,
       engagementTypeId:   engagements.engagementTypeId,
@@ -224,7 +223,7 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
       id:                 e.id,
       name:               e.name,
       code:               e.code,
-      active:             e.active,
+      active:             e.validUntil >= new Date().toISOString().split('T')[0],
       totalHours:         e.totalHours,
       validUntil:         e.validUntil,
       engagementTypeId:   e.engagementTypeId,
@@ -506,7 +505,6 @@ export async function createEngagement(
         engagementTypeId: parsed.data.engagementTypeId,
         totalHours:       parsed.data.totalHours ?? 999999,
         validUntil:       parsed.data.validUntil ?? '2999-12-31',
-        active:           true,
       })
       .returning({ id: engagements.id })
 
@@ -522,7 +520,7 @@ export async function createEngagement(
 
 export async function updateEngagement(
   id: string,
-  data: { name?: string; active?: boolean; totalHours?: number; validUntil?: string },
+  data: { name?: string; totalHours?: number; validUntil?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -544,7 +542,6 @@ export async function updateEngagement(
       .update(engagements)
       .set({
         ...(data.name && { name: data.name.trim() }),
-        ...(data.active !== undefined && { active: data.active }),
         ...(data.totalHours !== undefined && { totalHours: data.totalHours }),
         ...(data.validUntil && { validUntil: data.validUntil }),
       })

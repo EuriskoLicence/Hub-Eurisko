@@ -1,6 +1,6 @@
 'use server'
 
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gte, sql } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
@@ -82,9 +82,9 @@ export async function getFinanceExpenseView(
     .where(
       and(
         eq(engagementUsers.userId, targetUserId),
-        eq(engagements.active,     true),
         eq(projects.active,        true),
         eq(clients.active,         true),
+        gte(engagements.validUntil, sql`CURRENT_DATE`),
       ),
     )
 

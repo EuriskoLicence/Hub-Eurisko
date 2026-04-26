@@ -110,7 +110,6 @@ export async function getTimesheetPageData(
     .where(
       and(
         eq(engagementUsers.userId,  userId),
-        eq(engagements.active,      true),
         eq(projects.active,         true),
         eq(clients.active,          true),
         gte(engagements.validUntil, sql`CURRENT_DATE`),

@@ -1,6 +1,6 @@
 'use server'
 
-import { and, eq, sql, isNotNull } from 'drizzle-orm'
+import { and, eq, gte, sql, isNotNull } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
@@ -54,7 +54,7 @@ export async function getActiveEngagements(projectId?: string | null): Promise<F
   const session = await auth()
   requireSection(session, 'CLIENTS_VIEW')
 
-  const conditions = [eq(engagements.active, true)]
+  const conditions = [gte(engagements.validUntil, sql`CURRENT_DATE`)]
   if (projectId) conditions.push(eq(engagements.projectId, projectId))
 
   const rows = await db

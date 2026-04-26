@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, gte, sql } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { requireSection } from '@/lib/permissions/auth-helpers'
 import { db } from '@/db'
@@ -35,8 +35,8 @@ export async function GET(req: NextRequest) {
         and(
           eq(projects.responsibleUserId, session.user.id),
           eq(engagementUsers.userId,     userIdParam),
-          eq(engagements.active,         true),
           eq(projects.active,            true),
+          gte(engagements.validUntil,    sql`CURRENT_DATE`),
         ),
       )
       .limit(1)

@@ -1,6 +1,6 @@
 'use server'
 
-import { and, asc, eq, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
@@ -29,8 +29,8 @@ export type CommessaRow = {
   responsibleName: string
   engagementCode:  string
   engagementName:  string
-  active:          boolean
   validUntil:      string         // YYYY-MM-DD
+  active:          boolean        // derivato: validUntil >= oggi
   totalHours:      number | null  // null = nessun limite (999999 in DB)
   workedHours:     number         // somma approvata da timesheet + extra
   remainingHours:  number | null  // null se totalHours è null
@@ -55,8 +55,8 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
   const conditions: ReturnType<typeof eq>[] = []
   if (filters.clientId)                conditions.push(eq(projects.clientId,   filters.clientId))
   if (filters.projectId)               conditions.push(eq(engagements.projectId, filters.projectId))
-  if (filters.activeOnly === 'active')   conditions.push(eq(engagements.active, true))
-  if (filters.activeOnly === 'inactive') conditions.push(eq(engagements.active, false))
+  if (filters.activeOnly === 'active')   conditions.push(gte(engagements.validUntil, sql`CURRENT_DATE`))
+  if (filters.activeOnly === 'inactive') conditions.push(lt(engagements.validUntil,  sql`CURRENT_DATE`))
 
   // Query principale
   const [mainRows, tsHoursRows, extraHoursRows] = await Promise.all([
@@ -71,7 +71,6 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
         responsibleFirst: users.firstName,
         engagementCode:   engagements.code,
         engagementName:   engagements.name,
-        active:           engagements.active,
         validUntil:       engagements.validUntil,
         totalHours:       engagements.totalHours,
       })
@@ -146,8 +145,8 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
       responsibleName: `${r.responsibleLast} ${r.responsibleFirst}`,
       engagementCode:  r.engagementCode,
       engagementName:  r.engagementName,
-      active:          r.active,
       validUntil:      r.validUntil,
+      active:          r.validUntil >= new Date().toISOString().split('T')[0],
       totalHours:      budgetHours,
       workedHours,
       remainingHours,

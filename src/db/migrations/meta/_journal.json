@@ -29,6 +29,13 @@
       "when": 1777239571895,
       "tag": "0003_hesitant_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777240580729,
+      "tag": "0004_sticky_wolfpack",
+      "breakpoints": true
     }
   ]
 }

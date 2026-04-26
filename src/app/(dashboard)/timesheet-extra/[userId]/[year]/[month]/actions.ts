@@ -49,7 +49,7 @@ async function assertResponsibleFor(loggedUserId: string, targetUserId: string) 
       and(
         eq(projects.responsibleUserId, loggedUserId),
         eq(engagementUsers.userId,     targetUserId),
-        eq(engagements.active,         true),
+        gte(engagements.validUntil,    sql`CURRENT_DATE`),
         eq(projects.active,            true),
       ),
     )
@@ -80,7 +80,7 @@ export async function getManagedUsers(): Promise<{ id: string; firstName: string
     .where(
       and(
         eq(projects.responsibleUserId, loggedUserId),
-        eq(engagements.active,         true),
+        gte(engagements.validUntil,    sql`CURRENT_DATE`),
         eq(projects.active,            true),
       ),
     )
@@ -237,7 +237,6 @@ export async function getTimesheetExtraPageDataForUser(
       and(
         eq(engagementUsers.userId,     targetUserId),
         eq(projects.responsibleUserId, session.user.id),
-        eq(engagements.active,         true),
         eq(projects.active,            true),
         eq(clients.active,             true),
         gte(engagements.validUntil,    sql`CURRENT_DATE`),
@@ -342,7 +341,6 @@ export async function saveTimesheetExtraEntriesForUser(
         and(
           eq(engagementUsers.userId,     targetUserId),
           eq(projects.responsibleUserId, session.user.id),
-          eq(engagements.active,         true),
           eq(projects.active,            true),
           gte(engagements.validUntil,    sql`CURRENT_DATE`),
         ),

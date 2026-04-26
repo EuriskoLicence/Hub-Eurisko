@@ -1,6 +1,6 @@
 'use server'
 
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, gte, lt, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { auth } from '@/auth'
 import { db } from '@/db'
@@ -19,7 +19,7 @@ export type CommessaUtenteRow = {
   engagementId:    string
   engagementCode:  string
   engagementName:  string
-  engagementActive: boolean
+  engagementActive: boolean  // derivato: validUntil >= oggi
   responsibleId:   string
   responsibleName: string   // "Cognome Nome"
 }
@@ -47,8 +47,8 @@ export async function getCommessePerUtente(
     filters.userId        ? eq(engagementUsers.userId,       filters.userId)        : undefined,
     filters.engagementId  ? eq(engagementUsers.engagementId, filters.engagementId)  : undefined,
     filters.responsibleId ? eq(projects.responsibleUserId,   filters.responsibleId) : undefined,
-    filters.activeOnly === 'active'   ? eq(engagements.active, true)  : undefined,
-    filters.activeOnly === 'inactive' ? eq(engagements.active, false) : undefined,
+    filters.activeOnly === 'active'   ? gte(engagements.validUntil, sql`CURRENT_DATE`) : undefined,
+    filters.activeOnly === 'inactive' ? lt(engagements.validUntil,  sql`CURRENT_DATE`) : undefined,
   ].filter(Boolean) as ReturnType<typeof eq>[]
 
   const rows = await db
@@ -61,7 +61,7 @@ export async function getCommessePerUtente(
       projectCode:      projects.code,
       engagementCode:   engagements.code,
       engagementName:   engagements.name,
-      engagementActive: engagements.active,
+      engagementValidUntil: engagements.validUntil,
       responsibleId:    projects.responsibleUserId,
       responsibleLast:  responsibleUser.lastName,
       responsibleFirst: responsibleUser.firstName,
@@ -85,7 +85,7 @@ export async function getCommessePerUtente(
     engagementId:     r.engagementId,
     engagementCode:   `${r.clientCode}-${r.projectCode}-${r.engagementCode}`,
     engagementName:   r.engagementName,
-    engagementActive: r.engagementActive,
+    engagementActive: r.engagementValidUntil >= new Date().toISOString().split('T')[0],
     responsibleId:    r.responsibleId,
     responsibleName:  `${r.responsibleLast} ${r.responsibleFirst}`,
   }))

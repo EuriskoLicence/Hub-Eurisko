@@ -20,7 +20,6 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
   const [expanded,    setExpanded]    = useState(false)
   const [editOpen,    setEditOpen]    = useState(false)
   const [name,        setName]        = useState(engagement.name)
-  const [active,      setActive]      = useState(engagement.active)
   const [totalHours,  setTotalHours]  = useState(String(engagement.totalHours))
   const [validUntil,  setValidUntil]  = useState(engagement.validUntil)
   const [error,       setError]       = useState('')
@@ -34,7 +33,6 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
     startTransition(async () => {
       const res = await updateEngagement(engagement.id, {
         name,
-        active,
         totalHours: parseInt(totalHours) || 999999,
         validUntil: validUntil || '2999-12-31',
       })
@@ -239,21 +237,10 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
                     />
                     <p className="text-xs text-gray-400 mt-1">Default 31/12/2999 (nessuna scadenza).</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id={`eng-active-${engagement.id}`}
-                      type="checkbox"
-                      checked={active}
-                      onChange={(e) => setActive(e.target.checked)}
-                      disabled={isPending}
-                      className="h-3.5 w-3.5 rounded border-gray-300 text-purple-600"
-                    />
-                    <label htmlFor={`eng-active-${engagement.id}`} className="text-xs text-gray-700">Attiva</label>
-                  </div>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => { setEditOpen(false); setName(engagement.name); setActive(engagement.active); setTotalHours(String(engagement.totalHours)); setValidUntil(engagement.validUntil); setError('') }}
+                      onClick={() => { setEditOpen(false); setName(engagement.name); setTotalHours(String(engagement.totalHours)); setValidUntil(engagement.validUntil); setError('') }}
                       disabled={isPending}
                       className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >

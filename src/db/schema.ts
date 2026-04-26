@@ -141,7 +141,6 @@ export const engagements = pgTable('engagements', {
   notes:            text('notes'),
   totalHours:       integer('total_hours').notNull().default(999999),
   validUntil:       date('valid_until').notNull().default('2999-12-31'),
-  active:           boolean('active').notNull().default(true),
   createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
