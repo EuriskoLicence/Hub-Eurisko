@@ -219,7 +219,8 @@ export async function getTimesheetExtraPageDataForUser(
     notes:         r.notes ?? null,
   }))
 
-  // Commesse di targetUserId (solo attive — usate nel dropdown "aggiungi commessa")
+  // Commesse di targetUserId per le quali il manager è responsabile
+  // (solo attive — usate nel dropdown "aggiungi commessa")
   const engRows = await db
     .select({
       id:          engagements.id,
@@ -234,10 +235,11 @@ export async function getTimesheetExtraPageDataForUser(
     .innerJoin(clients,     eq(projects.clientId,            clients.id))
     .where(
       and(
-        eq(engagementUsers.userId, targetUserId),
-        eq(engagements.active,     true),
-        eq(projects.active,        true),
-        eq(clients.active,         true),
+        eq(engagementUsers.userId,     targetUserId),
+        eq(projects.responsibleUserId, session.user.id),
+        eq(engagements.active,         true),
+        eq(projects.active,            true),
+        eq(clients.active,             true),
       ),
     )
 
@@ -329,11 +331,20 @@ export async function saveTimesheetExtraEntriesForUser(
       return { ok: false, error: 'Il mese non è in bozza: non puoi modificare le ore.' }
     }
 
-    // Commesse abilitate per targetUserId
+    // Commesse abilitate per targetUserId sulle quali il manager è responsabile
     const allowedEngRows = await db
       .select({ engagementId: engagementUsers.engagementId })
       .from(engagementUsers)
-      .where(eq(engagementUsers.userId, targetUserId))
+      .innerJoin(engagements, eq(engagementUsers.engagementId, engagements.id))
+      .innerJoin(projects,    eq(engagements.projectId,        projects.id))
+      .where(
+        and(
+          eq(engagementUsers.userId,     targetUserId),
+          eq(projects.responsibleUserId, session.user.id),
+          eq(engagements.active,         true),
+          eq(projects.active,            true),
+        ),
+      )
 
     const allowedEngIds = new Set(allowedEngRows.map((r) => r.engagementId))
 
