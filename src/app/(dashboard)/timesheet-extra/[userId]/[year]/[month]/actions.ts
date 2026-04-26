@@ -244,13 +244,13 @@ export async function getTimesheetExtraPageDataForUser(
   // Recupera anche le commesse inattive referenziate dalle entry esistenti
   // (per mostrare il nome corretto invece di "Commessa sconosciuta")
   const activeEngIds  = new Set(engRows.map((e) => e.id))
-  const missingEngIds = [
-    ...new Set(
+  const missingEngIds = Array.from(
+    new Set(
       entryRows
         .map((r) => r.engagementId)
         .filter((id): id is string => id !== null && !activeEngIds.has(id)),
     ),
-  ]
+  )
 
   if (missingEngIds.length > 0) {
     const inactiveEngRows = await db
