@@ -8,10 +8,6 @@ import { StatusBadge } from './StatusBadge'
 import { HolidayBadge } from './HolidayBadge'
 import { FillDefaultButton } from './FillDefaultButton'
 import {
-  saveTimesheetExtraEntries,
-  submitTimesheetExtra,
-} from '@/app/(dashboard)/timesheet-extra/[year]/[month]/actions'
-import {
   saveTimesheetExtraEntriesForUser,
   submitTimesheetExtraForUser,
 } from '@/app/(dashboard)/timesheet-extra/[userId]/[year]/[month]/actions'
@@ -86,9 +82,9 @@ export function ExtraMonthGrid({
   targetUserId,
   targetUserName,
 }: {
-  data:            TimesheetPageData
-  targetUserId?:   string
-  targetUserName?: string
+  data:           TimesheetPageData
+  targetUserId:   string
+  targetUserName: string
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -173,9 +169,7 @@ export function ExtraMonthGrid({
 
   function handleSave() {
     startTransition(async () => {
-      const res = targetUserId
-        ? await saveTimesheetExtraEntriesForUser(targetUserId, year, month, rowsToEntries(rows))
-        : await saveTimesheetExtraEntries(year, month, rowsToEntries(rows))
+      const res = await saveTimesheetExtraEntriesForUser(targetUserId, year, month, rowsToEntries(rows))
       if (res.ok) showToast('ok', 'Bozza salvata con successo.')
       else        showToast('err', res.error)
     })
@@ -184,13 +178,9 @@ export function ExtraMonthGrid({
   function handleSubmit() {
     if (!confirm('Inviare definitivamente la consuntivazione extra? Non potrai più modificarla.')) return
     startTransition(async () => {
-      const saveRes = targetUserId
-        ? await saveTimesheetExtraEntriesForUser(targetUserId, year, month, rowsToEntries(rows))
-        : await saveTimesheetExtraEntries(year, month, rowsToEntries(rows))
+      const saveRes = await saveTimesheetExtraEntriesForUser(targetUserId, year, month, rowsToEntries(rows))
       if (!saveRes.ok) { showToast('err', saveRes.error); return }
-      const submitRes = targetUserId
-        ? await submitTimesheetExtraForUser(targetUserId, year, month)
-        : await submitTimesheetExtra(year, month)
+      const submitRes = await submitTimesheetExtraForUser(targetUserId, year, month)
       if (submitRes.ok) { showToast('ok', 'Consuntivazione extra inviata definitivamente.'); router.refresh() }
       else              showToast('err', submitRes.error)
     })
@@ -198,18 +188,16 @@ export function ExtraMonthGrid({
 
   const availableEngagements = engagements.filter((e) => !rows.some((r) => r.id === e.id))
 
-  const backHref = targetUserId ? `/timesheet-extra/${targetUserId}` : '/timesheet-extra'
+  const backHref = `/timesheet-extra/${targetUserId}`
 
   return (
     <div className="space-y-4 pb-24">
       {/* ─── Banner utente ───────────────────────────────────────────────── */}
-      {targetUserName && (
-        <div className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
-          <User className="h-4 w-4 shrink-0 text-teal-500" />
-          Stai compilando la consuntivazione extra di{' '}
-          <strong className="ml-1">{targetUserName}</strong>
-        </div>
-      )}
+      <div className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+        <User className="h-4 w-4 shrink-0 text-teal-500" />
+        Stai compilando la consuntivazione extra di{' '}
+        <strong className="ml-1">{targetUserName}</strong>
+      </div>
 
       {/* ─── Intestazione ────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -230,12 +218,8 @@ export function ExtraMonthGrid({
           </div>
           <nav className="mt-1 text-xs text-gray-400">
             <a href="/timesheet-extra" className="hover:text-gray-600">Consuntivazione extra</a>
-            {targetUserId && targetUserName && (
-              <>
-                {' / '}
-                <a href={backHref} className="hover:text-gray-600">{targetUserName}</a>
-              </>
-            )}
+            {' / '}
+            <a href={backHref} className="hover:text-gray-600">{targetUserName}</a>
             {' / '}
             <span className="text-gray-600">{IT_MONTHS[month - 1]} {year}</span>
           </nav>
