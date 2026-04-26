@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Parametri non validi.' }, { status: 400 })
     }
 
-    // Utenti con sezione TIMESHEET attiva nel proprio ruolo
+    // Utenti con sezione TIMESHEET attiva e obbligo di consuntivazione
+    // (stessa logica del sollecito: esclude excludeFromTimesheet = true)
     const activeUsers = await db
       .selectDistinct({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email })
       .from(users)
@@ -36,7 +37,10 @@ export async function GET(req: NextRequest) {
         eq(profileSections.profileId,   roleProfiles.profileId),
         eq(profileSections.sectionCode, 'TIMESHEET'),
       ))
-      .where(eq(users.active, true))
+      .where(and(
+        eq(users.active,                true),
+        eq(users.excludeFromTimesheet,  false),
+      ))
       .orderBy(users.lastName, users.firstName)
 
     const activeUserIds = activeUsers.map((u) => u.id)
