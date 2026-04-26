@@ -1,14 +1,27 @@
 'use server'
 
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, sql } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
-import { clients, engagements, projects, users } from '@/db/schema'
+import {
+  clients,
+  engagements,
+  projects,
+  users,
+  timesheetEntries,
+  timesheetMonths,
+  timesheetExtraEntries,
+  timesheetExtraMonths,
+} from '@/db/schema'
 import { requireSection } from '@/lib/permissions/auth-helpers'
+
+// Valore sentinella usato in DB quando non è impostato un budget ore
+const UNLIMITED_HOURS = 999999
 
 // ─── Tipi ────────────────────────────────────────────────────────────────────
 
 export type CommessaRow = {
+  engagementId:    string
   clientCode:      string
   clientName:      string
   projectCode:     string
@@ -17,6 +30,9 @@ export type CommessaRow = {
   engagementCode:  string
   engagementName:  string
   active:          boolean
+  totalHours:      number | null  // null = nessun limite (999999 in DB)
+  workedHours:     number         // somma approvata da timesheet + extra
+  remainingHours:  number | null  // null se totalHours è null
 }
 
 export type ActiveFilter = 'all' | 'active' | 'inactive'
@@ -36,44 +52,104 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
   requireSection(session, 'CLIENTS_VIEW')
 
   const conditions: ReturnType<typeof eq>[] = []
-  if (filters.clientId)               conditions.push(eq(projects.clientId, filters.clientId))
-  if (filters.projectId)              conditions.push(eq(engagements.projectId, filters.projectId))
+  if (filters.clientId)                conditions.push(eq(projects.clientId,   filters.clientId))
+  if (filters.projectId)               conditions.push(eq(engagements.projectId, filters.projectId))
   if (filters.activeOnly === 'active')   conditions.push(eq(engagements.active, true))
   if (filters.activeOnly === 'inactive') conditions.push(eq(engagements.active, false))
 
-  const rows = await db
-    .select({
-      clientCode:       clients.code,
-      clientName:       clients.name,
-      projectCode:      projects.code,
-      projectName:      projects.name,
-      responsibleLast:  users.lastName,
-      responsibleFirst: users.firstName,
-      engagementCode:   engagements.code,
-      engagementName:   engagements.name,
-      active:           engagements.active,
-    })
-    .from(engagements)
-    .innerJoin(projects, eq(engagements.projectId, projects.id))
-    .innerJoin(clients,  eq(projects.clientId, clients.id))
-    .innerJoin(users,    eq(projects.responsibleUserId, users.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(
-      asc(clients.name),
-      asc(projects.name),
-      asc(engagements.code),
-    )
+  // Query principale
+  const [mainRows, tsHoursRows, extraHoursRows] = await Promise.all([
+    db
+      .select({
+        engagementId:     engagements.id,
+        clientCode:       clients.code,
+        clientName:       clients.name,
+        projectCode:      projects.code,
+        projectName:      projects.name,
+        responsibleLast:  users.lastName,
+        responsibleFirst: users.firstName,
+        engagementCode:   engagements.code,
+        engagementName:   engagements.name,
+        active:           engagements.active,
+        totalHours:       engagements.totalHours,
+      })
+      .from(engagements)
+      .innerJoin(projects, eq(engagements.projectId,        projects.id))
+      .innerJoin(clients,  eq(projects.clientId,            clients.id))
+      .innerJoin(users,    eq(projects.responsibleUserId,   users.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(clients.name), asc(projects.name), asc(engagements.code)),
 
-  return rows.map((r) => ({
-    clientCode:      r.clientCode,
-    clientName:      r.clientName,
-    projectCode:     r.projectCode,
-    projectName:     r.projectName,
-    responsibleName: `${r.responsibleLast} ${r.responsibleFirst}`,
-    engagementCode:  r.engagementCode,
-    engagementName:  r.engagementName,
-    active:          r.active,
-  }))
+    // Ore timesheet ordinario approvate per commessa
+    db
+      .select({
+        engagementId: timesheetEntries.engagementId,
+        hours:        sql<number>`coalesce(sum(${timesheetEntries.hours}), 0)`.as('hours'),
+      })
+      .from(timesheetEntries)
+      .innerJoin(
+        timesheetMonths,
+        and(
+          eq(timesheetMonths.userId, timesheetEntries.userId),
+          eq(timesheetMonths.year,   timesheetEntries.year),
+          eq(timesheetMonths.month,  timesheetEntries.month),
+        ),
+      )
+      .where(
+        and(
+          isNotNull(timesheetEntries.engagementId),
+          eq(timesheetMonths.status, 'approved'),
+        ),
+      )
+      .groupBy(timesheetEntries.engagementId),
+
+    // Ore timesheet extra approvate per commessa
+    db
+      .select({
+        engagementId: timesheetExtraEntries.engagementId,
+        hours:        sql<number>`coalesce(sum(${timesheetExtraEntries.hours}), 0)`.as('hours'),
+      })
+      .from(timesheetExtraEntries)
+      .innerJoin(
+        timesheetExtraMonths,
+        and(
+          eq(timesheetExtraMonths.userId, timesheetExtraEntries.userId),
+          eq(timesheetExtraMonths.year,   timesheetExtraEntries.year),
+          eq(timesheetExtraMonths.month,  timesheetExtraEntries.month),
+        ),
+      )
+      .where(
+        and(
+          isNotNull(timesheetExtraEntries.engagementId),
+          eq(timesheetExtraMonths.status, 'approved'),
+        ),
+      )
+      .groupBy(timesheetExtraEntries.engagementId),
+  ])
+
+  const tsMap    = new Map(tsHoursRows.map((r)    => [r.engagementId, Number(r.hours)]))
+  const extraMap = new Map(extraHoursRows.map((r) => [r.engagementId, Number(r.hours)]))
+
+  return mainRows.map((r) => {
+    const workedHours    = (tsMap.get(r.engagementId) ?? 0) + (extraMap.get(r.engagementId) ?? 0)
+    const budgetHours    = r.totalHours >= UNLIMITED_HOURS ? null : r.totalHours
+    const remainingHours = budgetHours === null ? null : budgetHours - workedHours
+
+    return {
+      engagementId:    r.engagementId,
+      clientCode:      r.clientCode,
+      clientName:      r.clientName,
+      projectCode:     r.projectCode,
+      projectName:     r.projectName,
+      responsibleName: `${r.responsibleLast} ${r.responsibleFirst}`,
+      engagementCode:  r.engagementCode,
+      engagementName:  r.engagementName,
+      active:          r.active,
+      totalHours:      budgetHours,
+      workedHours,
+      remainingHours,
+    }
+  })
 }
 
 // ─── Filtri dropdown ─────────────────────────────────────────────────────────

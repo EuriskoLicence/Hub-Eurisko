@@ -4,6 +4,7 @@ import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getCommessaList, getFilterClients, getFilterProjects, type ActiveFilter } from './actions'
 import { BarChart2, FileSpreadsheet, List } from 'lucide-react'
 import { CheckCircle2, XCircle } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export const metadata = { title: 'Report lista commesse' }
 
@@ -11,6 +12,23 @@ type SP = {
   clientId?:  string
   projectId?: string
   activeOnly?: string
+}
+
+function HoursCell({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-gray-300">—</span>
+  return <span>{value}h</span>
+}
+
+function RemainingCell({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-gray-300">—</span>
+  return (
+    <span className={cn(
+      'font-medium',
+      value < 0 ? 'text-red-600' : value === 0 ? 'text-gray-400' : 'text-green-700',
+    )}>
+      {value > 0 ? '+' : ''}{value}h
+    </span>
+  )
 }
 
 export default async function ListaCommessePage({ searchParams }: { searchParams: SP }) {
@@ -28,12 +46,12 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
   ])
 
   const exportParams = new URLSearchParams()
-  if (clientId)              exportParams.set('clientId',  clientId)
-  if (projectId)             exportParams.set('projectId', projectId)
-  if (activeOnly !== 'all')  exportParams.set('activeOnly', activeOnly)
+  if (clientId)             exportParams.set('clientId',  clientId)
+  if (projectId)            exportParams.set('projectId', projectId)
+  if (activeOnly !== 'all') exportParams.set('activeOnly', activeOnly)
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
@@ -131,7 +149,7 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
           <p className="text-sm text-gray-400">Nessuna commessa trovata per i filtri selezionati.</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-gray-200 bg-white overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -143,11 +161,14 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
                 <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Cod. commessa</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Commessa</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">Attiva</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Ore budget</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Ore consuntivate</th>
+                <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Ore rimanenti</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((r, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+              {rows.map((r) => (
+                <tr key={r.engagementId} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.clientCode}</td>
                   <td className="px-4 py-3 font-medium text-gray-900">{r.clientName}</td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-500">{r.projectCode}</td>
@@ -158,8 +179,17 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
                   <td className="px-4 py-3 text-center">
                     {r.active
                       ? <CheckCircle2 className="h-4 w-4 text-green-500 inline" />
-                      : <XCircle     className="h-4 w-4 text-gray-300 inline" />
+                      : <XCircle      className="h-4 w-4 text-gray-300 inline" />
                     }
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-700 tabular-nums">
+                    <HoursCell value={r.totalHours} />
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-700 tabular-nums">
+                    {r.workedHours}h
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    <RemainingCell value={r.remainingHours} />
                   </td>
                 </tr>
               ))}

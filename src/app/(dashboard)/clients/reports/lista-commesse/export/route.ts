@@ -26,6 +26,9 @@ export async function GET(req: NextRequest) {
     'Cod. commessa',
     'Commessa',
     'Attiva',
+    'Ore budget',
+    'Ore consuntivate',
+    'Ore rimanenti',
   ]
 
   const dataRows: (string | number)[][] = rows.map((r) => [
@@ -37,6 +40,9 @@ export async function GET(req: NextRequest) {
     r.engagementCode,
     r.engagementName,
     r.active ? 'Sì' : 'No',
+    r.totalHours     ?? '—',
+    r.workedHours,
+    r.remainingHours ?? '—',
   ])
 
   const wb = XLSX.utils.book_new()
@@ -52,6 +58,16 @@ export async function GET(req: NextRequest) {
     if (ws[cellRef]) ws[cellRef].s = headerStyle
   }
 
+  // Stile rosso per ore rimanenti negative
+  rows.forEach((r, rowIdx) => {
+    if (r.remainingHours !== null && r.remainingHours < 0) {
+      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 10 })
+      if (ws[cellRef]) {
+        ws[cellRef].s = { font: { color: { rgb: 'DC2626' }, bold: true } }
+      }
+    }
+  })
+
   ws['!cols'] = [
     { wch: 14 }, // Cod. cliente
     { wch: 30 }, // Cliente
@@ -61,6 +77,9 @@ export async function GET(req: NextRequest) {
     { wch: 14 }, // Cod. commessa
     { wch: 35 }, // Commessa
     { wch: 10 }, // Attiva
+    { wch: 12 }, // Ore budget
+    { wch: 16 }, // Ore consuntivate
+    { wch: 14 }, // Ore rimanenti
   ]
 
   XLSX.utils.book_append_sheet(wb, ws, 'Lista commesse')
