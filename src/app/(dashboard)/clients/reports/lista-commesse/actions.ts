@@ -30,6 +30,7 @@ export type CommessaRow = {
   engagementCode:  string
   engagementName:  string
   active:          boolean
+  validUntil:      string         // YYYY-MM-DD
   totalHours:      number | null  // null = nessun limite (999999 in DB)
   workedHours:     number         // somma approvata da timesheet + extra
   remainingHours:  number | null  // null se totalHours è null
@@ -71,6 +72,7 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
         engagementCode:   engagements.code,
         engagementName:   engagements.name,
         active:           engagements.active,
+        validUntil:       engagements.validUntil,
         totalHours:       engagements.totalHours,
       })
       .from(engagements)
@@ -145,6 +147,7 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
       engagementCode:  r.engagementCode,
       engagementName:  r.engagementName,
       active:          r.active,
+      validUntil:      r.validUntil,
       totalHours:      budgetHours,
       workedHours,
       remainingHours,

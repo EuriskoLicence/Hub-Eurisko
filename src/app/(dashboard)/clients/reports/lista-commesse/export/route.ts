@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
     'Cod. commessa',
     'Commessa',
     'Attiva',
+    'Fine validità',
     'Ore budget',
     'Ore consuntivate',
     'Ore rimanenti',
@@ -40,6 +41,9 @@ export async function GET(req: NextRequest) {
     r.engagementCode,
     r.engagementName,
     r.active ? 'Sì' : 'No',
+    r.validUntil === '2999-12-31'
+      ? '—'
+      : new Date(r.validUntil + 'T00:00:00').toLocaleDateString('it-IT'),
     r.totalHours     ?? '—',
     r.workedHours,
     r.remainingHours ?? '—',
@@ -58,10 +62,16 @@ export async function GET(req: NextRequest) {
     if (ws[cellRef]) ws[cellRef].s = headerStyle
   }
 
-  // Stile rosso per ore rimanenti negative
+  // Stile rosso per ore rimanenti negative e per date fine validità già scadute
   rows.forEach((r, rowIdx) => {
     if (r.remainingHours !== null && r.remainingHours < 0) {
-      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 10 })
+      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 11 })
+      if (ws[cellRef]) {
+        ws[cellRef].s = { font: { color: { rgb: 'DC2626' }, bold: true } }
+      }
+    }
+    if (r.validUntil !== '2999-12-31' && new Date(r.validUntil + 'T00:00:00') < new Date()) {
+      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 8 })
       if (ws[cellRef]) {
         ws[cellRef].s = { font: { color: { rgb: 'DC2626' }, bold: true } }
       }
@@ -77,6 +87,7 @@ export async function GET(req: NextRequest) {
     { wch: 14 }, // Cod. commessa
     { wch: 35 }, // Commessa
     { wch: 10 }, // Attiva
+    { wch: 14 }, // Fine validità
     { wch: 12 }, // Ore budget
     { wch: 16 }, // Ore consuntivate
     { wch: 14 }, // Ore rimanenti

@@ -161,6 +161,7 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
                 <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Cod. commessa</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Commessa</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">Attiva</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Fine validità</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Ore budget</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Ore consuntivate</th>
                 <th className="text-right px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Ore rimanenti</th>
@@ -180,6 +181,16 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
                     {r.active
                       ? <CheckCircle2 className="h-4 w-4 text-green-500 inline" />
                       : <XCircle      className="h-4 w-4 text-gray-300 inline" />
+                    }
+                  </td>
+                  <td className="px-4 py-3 text-center text-sm tabular-nums">
+                    {r.validUntil === '2999-12-31'
+                      ? <span className="text-gray-300">—</span>
+                      : <span className={cn(
+                          new Date(r.validUntil + 'T00:00:00') < new Date() ? 'text-red-600 font-medium' : 'text-gray-700'
+                        )}>
+                          {new Date(r.validUntil + 'T00:00:00').toLocaleDateString('it-IT')}
+                        </span>
                     }
                   </td>
                   <td className="px-4 py-3 text-right text-gray-700 tabular-nums">

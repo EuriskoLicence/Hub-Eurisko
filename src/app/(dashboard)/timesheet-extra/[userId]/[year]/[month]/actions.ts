@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
@@ -240,6 +240,7 @@ export async function getTimesheetExtraPageDataForUser(
         eq(engagements.active,         true),
         eq(projects.active,            true),
         eq(clients.active,             true),
+        gte(engagements.validUntil,    sql`CURRENT_DATE`),
       ),
     )
 
@@ -343,6 +344,7 @@ export async function saveTimesheetExtraEntriesForUser(
           eq(projects.responsibleUserId, session.user.id),
           eq(engagements.active,         true),
           eq(projects.active,            true),
+          gte(engagements.validUntil,    sql`CURRENT_DATE`),
         ),
       )
 

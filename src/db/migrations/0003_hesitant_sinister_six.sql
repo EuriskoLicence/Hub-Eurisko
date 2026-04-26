@@ -1,0 +1,1 @@
+ALTER TABLE "engagements" ADD COLUMN "valid_until" date DEFAULT '2999-12-31' NOT NULL;

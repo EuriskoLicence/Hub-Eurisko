@@ -37,6 +37,7 @@ export type EngagementDetail = {
   code:             string
   active:           boolean
   totalHours:       number
+  validUntil:       string   // YYYY-MM-DD
   engagementTypeId: string
   engagementTypeName: string
   assignedUsers:    { userId: string; fullName: string; email: string }[]
@@ -175,6 +176,7 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
       code:               engagements.code,
       active:             engagements.active,
       totalHours:         engagements.totalHours,
+      validUntil:         engagements.validUntil,
       engagementTypeId:   engagements.engagementTypeId,
       engTypeName:        engagementTypes.name,
     })
@@ -224,6 +226,7 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
       code:               e.code,
       active:             e.active,
       totalHours:         e.totalHours,
+      validUntil:         e.validUntil,
       engagementTypeId:   e.engagementTypeId,
       engagementTypeName: e.engTypeName,
       assignedUsers:      assignedByEng.get(e.id) ?? [],
@@ -454,6 +457,7 @@ const EngagementSchema = z.object({
   name:             z.string().min(2, 'Il nome è obbligatorio.').max(100),
   engagementTypeId: z.string().uuid('Tipologia obbligatoria.'),
   totalHours:       z.number().int().positive().optional(),
+  validUntil:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 })
 
 async function checkEngagementOwnership(projectId: string, userId: string): Promise<{ clientId: string } | { error: string }> {
@@ -475,7 +479,7 @@ async function checkEngagementOwnership(projectId: string, userId: string): Prom
 
 export async function createEngagement(
   projectId: string,
-  data: { name: string; engagementTypeId: string; totalHours?: number },
+  data: { name: string; engagementTypeId: string; totalHours?: number; validUntil?: string },
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -501,6 +505,7 @@ export async function createEngagement(
         projectId,
         engagementTypeId: parsed.data.engagementTypeId,
         totalHours:       parsed.data.totalHours ?? 999999,
+        validUntil:       parsed.data.validUntil ?? '2999-12-31',
         active:           true,
       })
       .returning({ id: engagements.id })
@@ -517,7 +522,7 @@ export async function createEngagement(
 
 export async function updateEngagement(
   id: string,
-  data: { name?: string; active?: boolean; totalHours?: number },
+  data: { name?: string; active?: boolean; totalHours?: number; validUntil?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -541,6 +546,7 @@ export async function updateEngagement(
         ...(data.name && { name: data.name.trim() }),
         ...(data.active !== undefined && { active: data.active }),
         ...(data.totalHours !== undefined && { totalHours: data.totalHours }),
+        ...(data.validUntil && { validUntil: data.validUntil }),
       })
       .where(eq(engagements.id, id))
 

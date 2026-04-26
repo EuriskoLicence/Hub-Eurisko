@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql, gte } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
@@ -109,10 +109,11 @@ export async function getTimesheetPageData(
     .innerJoin(clients,     eq(projects.clientId,            clients.id))
     .where(
       and(
-        eq(engagementUsers.userId, userId),
-        eq(engagements.active,     true),
-        eq(projects.active,        true),
-        eq(clients.active,         true),
+        eq(engagementUsers.userId,  userId),
+        eq(engagements.active,      true),
+        eq(projects.active,         true),
+        eq(clients.active,          true),
+        gte(engagements.validUntil, sql`CURRENT_DATE`),
       ),
     )
 

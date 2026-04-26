@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Users, UserPlus, UserMinus, Pencil, ChevronDown, X, Clock } from 'lucide-react'
+import { Tag, Users, UserPlus, UserMinus, Pencil, ChevronDown, X, Clock, CalendarX2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { updateEngagement, assignUserToEngagement, removeUserFromEngagement } from '@/app/(dashboard)/clients/actions'
 import type { EngagementDetail, UserOption } from '@/app/(dashboard)/clients/actions'
@@ -22,6 +22,7 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
   const [name,        setName]        = useState(engagement.name)
   const [active,      setActive]      = useState(engagement.active)
   const [totalHours,  setTotalHours]  = useState(String(engagement.totalHours))
+  const [validUntil,  setValidUntil]  = useState(engagement.validUntil)
   const [error,       setError]       = useState('')
   const [isPending,   startTransition] = useTransition()
   const [addUserId,   setAddUserId]   = useState('')
@@ -35,6 +36,7 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
         name,
         active,
         totalHours: parseInt(totalHours) || 999999,
+        validUntil: validUntil || '2999-12-31',
       })
       if (res.ok) { setEditOpen(false); router.refresh() }
       else setError(res.error)
@@ -98,6 +100,15 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
               <Clock className="h-3 w-3" />
               {engagement.totalHours.toLocaleString('it-IT')}h
             </span>
+            {engagement.validUntil !== '2999-12-31' && (
+              <>
+                <span>·</span>
+                <span className="flex items-center gap-1">
+                  <CalendarX2 className="h-3 w-3" />
+                  {new Date(engagement.validUntil + 'T00:00:00').toLocaleDateString('it-IT')}
+                </span>
+              </>
+            )}
           </div>
         </div>
         {!engagement.active && (
@@ -214,6 +225,20 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
                                  [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Data fine validità
+                    </label>
+                    <input
+                      type="date"
+                      value={validUntil}
+                      onChange={(e) => { setValidUntil(e.target.value || '2999-12-31'); setError('') }}
+                      disabled={isPending}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Default 31/12/2999 (nessuna scadenza).</p>
+                  </div>
                   <div className="flex items-center gap-2">
                     <input
                       id={`eng-active-${engagement.id}`}
@@ -228,7 +253,7 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => { setEditOpen(false); setName(engagement.name); setActive(engagement.active); setTotalHours(String(engagement.totalHours)); setError('') }}
+                      onClick={() => { setEditOpen(false); setName(engagement.name); setActive(engagement.active); setTotalHours(String(engagement.totalHours)); setValidUntil(engagement.validUntil); setError('') }}
                       disabled={isPending}
                       className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >

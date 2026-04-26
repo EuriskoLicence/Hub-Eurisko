@@ -15,6 +15,20 @@
       "when": 1776894976670,
       "tag": "0001_lively_millenium_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777127121483,
+      "tag": "0002_giant_madame_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777239571895,
+      "tag": "0003_hesitant_sinister_six",
+      "breakpoints": true
     }
   ]
 }

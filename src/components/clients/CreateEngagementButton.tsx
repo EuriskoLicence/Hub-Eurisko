@@ -18,6 +18,7 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
   const [nextCode,        setNextCode]        = useState('')
   const [engTypeId,       setEngTypeId]       = useState(engagementTypes[0]?.id ?? '')
   const [totalHours,      setTotalHours]      = useState('999999')
+  const [validUntil,      setValidUntil]      = useState('2999-12-31')
   const [error,           setError]           = useState('')
   const [isPending,       startTransition]    = useTransition()
   const [isLoadingCode,   startLoadCode]      = useTransition()
@@ -40,6 +41,7 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
         name,
         engagementTypeId: engTypeId,
         totalHours: parseInt(totalHours) || 999999,
+        validUntil: validUntil || '2999-12-31',
       })
       if (res.ok) {
         setOpen(false)
@@ -58,6 +60,7 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
     setError('')
     setEngTypeId(engagementTypes[0]?.id ?? '')
     setTotalHours('999999')
+    setValidUntil('2999-12-31')
   }
 
   return (
@@ -153,6 +156,22 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
                              [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <p className="text-xs text-gray-400 mt-1">Default 999.999 (illimitato).</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Data fine validità
+                </label>
+                <input
+                  type="date"
+                  value={validUntil}
+                  onChange={(e) => { setValidUntil(e.target.value || '2999-12-31'); setError('') }}
+                  disabled={isPending}
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm
+                             focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent
+                             disabled:opacity-50"
+                />
+                <p className="text-xs text-gray-400 mt-1">Default 31/12/2999 (nessuna scadenza).</p>
               </div>
 
               <div className="flex gap-3">
