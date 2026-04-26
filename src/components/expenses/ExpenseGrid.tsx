@@ -14,7 +14,6 @@ import {
   saveExpenseLines,
   submitExpenseReport,
   requestExpenseAmendment,
-  updateUserTariffaKm,
 } from '@/app/(dashboard)/expenses/detail-actions'
 import type {
   ExpensePageData, ExpenseRowState, CellData, SaveLine,
@@ -128,8 +127,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
   const [showAmend,   setShowAmend]   = useState(false)
   const [showAddRow,  setShowAddRow]  = useState(false)
   const [showKmConfirm, setShowKmConfirm] = useState(false)
-  const [tariffaKm,   setTariffaKm]  = useState<string>(userTariffaKm ?? '')
-  const [savingRate,  setSavingRate]  = useState(false)
+  const tariffaKm = userTariffaKm ?? ''
   const { toasts, push } = useToast()
 
   // Categorie km-based disponibili
@@ -147,34 +145,6 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
     () => calendar,
     [calendar],
   )
-
-  // ── Tariffa km ───────────────────────────────────────────────────────────
-
-  function handleTariffaKmChange(newRate: string) {
-    setTariffaKm(newRate)
-
-    // Ricalcola tutte le celle km-based con la nuova tariffa
-    setRows((prev) => prev.map((row) => {
-      if (!row.isKmBased) return row
-      const updatedCells = Object.fromEntries(
-        Object.entries(row.cells).map(([day, cell]) => {
-          if (!cell) return [day, cell]
-          return [day, {
-            ...cell,
-            amountEur: calcKmAmountEur(cell.kmDistance, newRate || null),
-            amount:    calcKmAmountEur(cell.kmDistance, newRate || null),
-          }]
-        }),
-      )
-      return { ...row, kmRate: newRate || null, cells: updatedCells }
-    }))
-  }
-
-  function handleTariffaKmBlur() {
-    // Salva la nuova tariffa nel profilo utente
-    setSavingRate(true)
-    updateUserTariffaKm(tariffaKm || null).finally(() => setSavingRate(false))
-  }
 
   // ── Cell helpers ─────────────────────────────────────────────────────────
 
@@ -460,34 +430,8 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
       {hasKmCategories && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
           <span className="text-sm font-medium text-blue-800">Tariffa rimborso km:</span>
-          {isReadOnly ? (
-            <span className="text-sm font-semibold text-blue-900">
-              {tariffaKm ? `€ ${parseFloat(tariffaKm).toFixed(4)}/km` : <span className="text-amber-600 italic">non impostata</span>}
-            </span>
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-blue-500 pointer-events-none">€</span>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  value={tariffaKm}
-                  onChange={(e) => handleTariffaKmChange(e.target.value)}
-                  onBlur={handleTariffaKmBlur}
-                  placeholder="0.0000"
-                  disabled={isPending}
-                  className="w-28 rounded-lg border border-blue-200 bg-white pl-6 pr-2 py-1.5 text-sm
-                             text-right font-mono focus:outline-none focus:ring-2 focus:ring-blue-400
-                             disabled:opacity-50"
-                />
-              </div>
-              <span className="text-sm text-blue-600">/km</span>
-              {savingRate && <span className="text-xs text-blue-400 italic">salvando…</span>}
-            </div>
-          )}
-          <span className="text-xs text-blue-400 ml-auto hidden sm:block">
-            Modificando questo valore si aggiorna anche il tuo profilo utente
+          <span className="text-sm font-semibold text-blue-900">
+            {tariffaKm ? `€ ${parseFloat(tariffaKm).toFixed(4)}/km` : <span className="text-amber-600 italic">non impostata — contatta l'amministratore</span>}
           </span>
         </div>
       )}
@@ -680,7 +624,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
             <h2 className="text-base font-semibold text-gray-900">Conferma invio nota spese</h2>
             <p className="text-sm text-gray-600">
-              La nota spese include voci di rimborso chilometrico calcolate con la seguente tariffa:
+              La nota spese include voci di rimborso chilometrico calcolate con la tariffa dal tuo profilo:
             </p>
             <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-center">
               <span className="text-2xl font-bold text-blue-700">
@@ -688,7 +632,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
               </span>
               <span className="text-sm text-blue-500 ml-1">/km</span>
             </div>
-            <p className="text-sm text-gray-500">Confermi di voler inviare la nota spese con questa tariffa?</p>
+            <p className="text-sm text-gray-500">Confermi di voler inviare la nota spese?</p>
             <div className="flex gap-3">
               <button
                 type="button"

@@ -122,7 +122,6 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
   }))
 
   // Righe griglia (solo se esiste il report)
-  let savedKmRate: string | null = null
   const rowMap = new Map<string, ExpenseRowState>()
   if (r) {
     const lineRows = await db
@@ -149,11 +148,7 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
       .innerJoin(expenseCategories, eq(expenseLines.categoryId, expenseCategories.id))
       .where(eq(expenseLines.reportId, r.id))
 
-    // La tariffa km effettiva è quella salvata nella prima riga km-based (se esiste),
-    // altrimenti quella del profilo utente
-    savedKmRate = lineRows.find((l) => l.tariffaKm)?.tariffaKm ?? null
-    const effectiveKmRate = savedKmRate ?? userTariffaKm
-
+    // La tariffa km è sempre quella del profilo utente (non modificabile dall'utente)
     for (const line of lineRows) {
       const rowKey = `${line.categoryId}|${line.engagementId ?? ''}`
       if (!rowMap.has(rowKey)) {
@@ -167,7 +162,7 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
           isKmBased:          line.catKmBased,
           engagementId:       line.engagementId  ?? null,
           engagementName:     eng ? `${eng.name} (${eng.code})` : null,
-          kmRate:             line.catKmBased ? effectiveKmRate : null,
+          kmRate:             line.catKmBased ? userTariffaKm : null,
           cells:              {},
         })
       }
@@ -214,7 +209,7 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
       isKmBased: c.isKmBased,
     })),
     engagements:  engRows,
-    userTariffaKm: savedKmRate ?? userTariffaKm,
+    userTariffaKm: userTariffaKm,
     calendar,
   }
 }
@@ -269,6 +264,14 @@ export async function saveExpenseLines(
       if (reportRows[0].status !== 'draft')  return { ok: false, error: 'Non puoi modificare questa nota spese.' }
     }
 
+    // Legge la tariffa km dal profilo utente (non si accetta il valore dal client)
+    const userKmRow = await db
+      .select({ tariffaKm: users.tariffaKm })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1)
+    const userTariffaKm = userKmRow[0]?.tariffaKm ?? null
+
     // Calcola totalAmount
     const totalAmount = lines.reduce((sum, l) => sum + parseFloat(l.amountEur || '0'), 0)
 
@@ -289,7 +292,7 @@ export async function saveExpenseLines(
           exchangeRate:       l.exchangeRate,
           amountEur:          l.amountEur,
           kmDistance:         l.kmDistance  || null,
-          tariffaKm:          l.tariffaKm   || null,
+          tariffaKm:          l.kmDistance ? userTariffaKm : null,  // sempre dal profilo utente
           attachmentKey:      l.attachmentKey      || null,
           attachmentFilename: l.attachmentFilename || null,
         })),
