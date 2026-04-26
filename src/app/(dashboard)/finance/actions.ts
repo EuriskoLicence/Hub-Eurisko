@@ -148,7 +148,7 @@ export async function getFinanceDashboard(year: number, month: number): Promise<
     const exp = expMap.get(u.id)
     return {
       userId:          u.id,
-      fullName:        `${u.firstName} ${u.lastName}`,
+      fullName:        `${u.lastName} ${u.firstName}`,
       email:           u.email,
       year,
       month,
@@ -229,7 +229,7 @@ export async function getAmendmentList(): Promise<AmendmentRow[]> {
       type:        'timesheet' as const,
       id:          r.id,
       userId:      r.userId,
-      fullName:    `${r.firstName} ${r.lastName}`,
+      fullName:    `${r.lastName} ${r.firstName}`,
       email:       r.email,
       year:        r.year,
       month:       r.month,
@@ -242,7 +242,7 @@ export async function getAmendmentList(): Promise<AmendmentRow[]> {
       type:        'expense' as const,
       id:          r.id,
       userId:      r.userId,
-      fullName:    `${r.firstName} ${r.lastName}`,
+      fullName:    `${r.lastName} ${r.firstName}`,
       email:       r.email,
       year:        r.year,
       month:       r.month,
@@ -313,7 +313,7 @@ export async function getExpenseDashboard(year: number, month: number): Promise<
   return rows.map((r) => ({
     reportId:    r.id,
     userId:      r.userId,
-    fullName:    `${r.firstName} ${r.lastName}`,
+    fullName:    `${r.lastName} ${r.firstName}`,
     email:       r.email,
     compYear:    r.compYear,
     compMonth:   r.compMonth,
@@ -350,5 +350,5 @@ export async function getUsersWithoutSubmittedTimesheet(
 
   return allUsers
     .filter((u) => !submittedIds.has(u.id))
-    .map((u) => ({ userId: u.id, fullName: `${u.firstName} ${u.lastName}`, email: u.email }))
+    .map((u) => ({ userId: u.id, fullName: `${u.lastName} ${u.firstName}`, email: u.email }))
 }
