@@ -450,3 +450,50 @@ export async function submitTimesheetExtraForUser(
     return { ok: false, error: 'Errore del server. Riprova.' }
   }
 }
+
+// ─── Riapertura per utente ────────────────────────────────────────────────────
+
+export async function reopenTimesheetExtraForUser(
+  targetUserId: string,
+  year:  number,
+  month: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'TIMESHEET_EXTRA')
+    await assertResponsibleFor(session.user.id, targetUserId)
+
+    if (isFutureMonth(year, month)) {
+      return { ok: false, error: 'Non puoi riaprire mesi futuri.' }
+    }
+
+    const existing = await db
+      .select({ id: timesheetExtraMonths.id, status: timesheetExtraMonths.status })
+      .from(timesheetExtraMonths)
+      .where(
+        and(
+          eq(timesheetExtraMonths.userId, targetUserId),
+          eq(timesheetExtraMonths.year,   year),
+          eq(timesheetExtraMonths.month,  month),
+        ),
+      )
+      .limit(1)
+
+    if (existing.length === 0 || existing[0].status !== 'approved') {
+      return { ok: false, error: 'Il mese non è in stato approvato: non può essere riaperto.' }
+    }
+
+    await db
+      .update(timesheetExtraMonths)
+      .set({ status: 'draft', updatedAt: new Date() })
+      .where(eq(timesheetExtraMonths.id, existing[0].id))
+
+    revalidatePath(`/timesheet-extra/${targetUserId}/${year}/${month}`)
+    revalidatePath(`/timesheet-extra/${targetUserId}`)
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    console.error('reopenTimesheetExtraForUser error:', err)
+    return { ok: false, error: 'Errore del server. Riprova.' }
+  }
+}

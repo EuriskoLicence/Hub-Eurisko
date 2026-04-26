@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo, useRef, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Save, AlertTriangle, ChevronRight, X, ArrowLeft, User } from 'lucide-react'
+import { Plus, Save, AlertTriangle, ChevronRight, X, ArrowLeft, User, RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatusBadge } from './StatusBadge'
 import { HolidayBadge } from './HolidayBadge'
@@ -10,6 +10,7 @@ import { FillDefaultButton } from './FillDefaultButton'
 import {
   saveTimesheetExtraEntriesForUser,
   submitTimesheetExtraForUser,
+  reopenTimesheetExtraForUser,
 } from '@/app/(dashboard)/timesheet-extra/[userId]/[year]/[month]/actions'
 import type {
   TimesheetPageData,
@@ -179,6 +180,14 @@ export function ExtraMonthGrid({
     setShowAddRow(false)
   }
 
+  function handleReopen() {
+    startTransition(async () => {
+      const res = await reopenTimesheetExtraForUser(targetUserId, year, month)
+      if (res.ok) { showToast('ok', 'Consuntivazione extra riaperta. Puoi apportare modifiche.'); router.refresh() }
+      else        showToast('err', res.error)
+    })
+  }
+
   // Unico handler: salva le entries e porta il mese in stato "approvato"
   function handleSave() {
     startTransition(async () => {
@@ -321,6 +330,18 @@ export function ExtraMonthGrid({
           >
             <Save className="h-4 w-4" />
             Salva
+          </button>
+        )}
+        {!isFuture && currentStatus === 'approved' && (
+          <button
+            onClick={handleReopen}
+            disabled={isPending}
+            className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2
+                       text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors
+                       disabled:opacity-50"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Riapri
           </button>
         )}
       </div>
