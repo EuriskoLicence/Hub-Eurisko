@@ -19,16 +19,20 @@ export type CommessaUtenteRow = {
   engagementId:    string
   engagementCode:  string
   engagementName:  string
+  engagementActive: boolean
   responsibleId:   string
   responsibleName: string   // "Cognome Nome"
 }
 
 export type FilterOption = { id: string; label: string }
 
+export type ActiveFilter = 'all' | 'active' | 'inactive'
+
 export type CommessaUtenteFilters = {
   userId:          string | null
   engagementId:    string | null
   responsibleId:   string | null
+  activeOnly:      ActiveFilter
 }
 
 // ─── Dati report ─────────────────────────────────────────────────────────────
@@ -43,6 +47,8 @@ export async function getCommessePerUtente(
     filters.userId        ? eq(engagementUsers.userId,       filters.userId)        : undefined,
     filters.engagementId  ? eq(engagementUsers.engagementId, filters.engagementId)  : undefined,
     filters.responsibleId ? eq(projects.responsibleUserId,   filters.responsibleId) : undefined,
+    filters.activeOnly === 'active'   ? eq(engagements.active, true)  : undefined,
+    filters.activeOnly === 'inactive' ? eq(engagements.active, false) : undefined,
   ].filter(Boolean) as ReturnType<typeof eq>[]
 
   const rows = await db
@@ -55,6 +61,7 @@ export async function getCommessePerUtente(
       projectCode:      projects.code,
       engagementCode:   engagements.code,
       engagementName:   engagements.name,
+      engagementActive: engagements.active,
       responsibleId:    projects.responsibleUserId,
       responsibleLast:  responsibleUser.lastName,
       responsibleFirst: responsibleUser.firstName,
@@ -73,13 +80,14 @@ export async function getCommessePerUtente(
     )
 
   return rows.map((r) => ({
-    userId:          r.userId,
-    userName:        `${r.userLastName} ${r.userFirstName}`,
-    engagementId:    r.engagementId,
-    engagementCode:  `${r.clientCode}-${r.projectCode}-${r.engagementCode}`,
-    engagementName:  r.engagementName,
-    responsibleId:   r.responsibleId,
-    responsibleName: `${r.responsibleLast} ${r.responsibleFirst}`,
+    userId:           r.userId,
+    userName:         `${r.userLastName} ${r.userFirstName}`,
+    engagementId:     r.engagementId,
+    engagementCode:   `${r.clientCode}-${r.projectCode}-${r.engagementCode}`,
+    engagementName:   r.engagementName,
+    engagementActive: r.engagementActive,
+    responsibleId:    r.responsibleId,
+    responsibleName:  `${r.responsibleLast} ${r.responsibleFirst}`,
   }))
 }
 

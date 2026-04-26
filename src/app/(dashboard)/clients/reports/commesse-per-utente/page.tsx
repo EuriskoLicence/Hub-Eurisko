@@ -6,8 +6,10 @@ import {
   getFilterUsers,
   getFilterEngagements,
   getFilterResponsibili,
+  type ActiveFilter,
 } from './actions'
 import { BarChart2, FileSpreadsheet, Users } from 'lucide-react'
+import { CheckCircle2, XCircle } from 'lucide-react'
 
 export const metadata = { title: 'Elenco commesse per utente' }
 
@@ -15,6 +17,7 @@ type SP = {
   userId?:        string
   engagementId?:  string
   responsibleId?: string
+  activeOnly?:    string
 }
 
 export default async function CommessePerUtentePage({ searchParams }: { searchParams: SP }) {
@@ -24,18 +27,20 @@ export default async function CommessePerUtentePage({ searchParams }: { searchPa
   const userId        = searchParams.userId        || null
   const engagementId  = searchParams.engagementId  || null
   const responsibleId = searchParams.responsibleId || null
+  const activeOnly    = (searchParams.activeOnly ?? 'all') as ActiveFilter
 
   const [rows, allUsers, allEngagements, allResponsibili] = await Promise.all([
-    getCommessePerUtente({ userId, engagementId, responsibleId }),
+    getCommessePerUtente({ userId, engagementId, responsibleId, activeOnly }),
     getFilterUsers(),
     getFilterEngagements(),
     getFilterResponsibili(),
   ])
 
   const exportParams = new URLSearchParams()
-  if (userId)        exportParams.set('userId',        userId)
-  if (engagementId)  exportParams.set('engagementId',  engagementId)
-  if (responsibleId) exportParams.set('responsibleId', responsibleId)
+  if (userId)                exportParams.set('userId',        userId)
+  if (engagementId)          exportParams.set('engagementId',  engagementId)
+  if (responsibleId)         exportParams.set('responsibleId', responsibleId)
+  if (activeOnly !== 'all')  exportParams.set('activeOnly',    activeOnly)
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -97,6 +102,19 @@ export default async function CommessePerUtentePage({ searchParams }: { searchPa
             </select>
           </div>
 
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Stato commessa</label>
+            <select
+              name="activeOnly"
+              defaultValue={activeOnly}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+            >
+              <option value="all">Tutte</option>
+              <option value="active">Solo attive</option>
+              <option value="inactive">Solo inattive</option>
+            </select>
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               type="submit"
@@ -143,6 +161,7 @@ export default async function CommessePerUtentePage({ searchParams }: { searchPa
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Utente</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Commessa</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-600">Attiva</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Responsabile commessa</th>
               </tr>
             </thead>
@@ -158,6 +177,12 @@ export default async function CommessePerUtentePage({ searchParams }: { searchPa
                     <td className="px-4 py-3 text-gray-700">
                       <span className="font-mono text-xs text-gray-400 mr-2">{r.engagementCode}</span>
                       {r.engagementName}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {r.engagementActive
+                        ? <CheckCircle2 className="h-4 w-4 text-green-500 inline" />
+                        : <XCircle      className="h-4 w-4 text-gray-300 inline" />
+                      }
                     </td>
                     <td className="px-4 py-3 text-gray-600">{r.responsibleName}</td>
                   </tr>
