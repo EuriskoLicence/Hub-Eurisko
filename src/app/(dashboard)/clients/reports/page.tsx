@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { BarChart2, Clock, ChevronRight, List } from 'lucide-react'
+import { BarChart2, Clock, ChevronRight, List, Users } from 'lucide-react'
 import Link from 'next/link'
 
 export const metadata = { title: 'Report' }
@@ -31,6 +31,14 @@ const REPORTS: ReportCard[] = [
     icon:        List,
     color:       'bg-blue-50 border-blue-100',
     iconColor:   'bg-blue-100 text-blue-600',
+  },
+  {
+    title:       'Elenco commesse per utente',
+    description: 'Tutte le commesse a cui ogni utente è abilitato, con responsabile commessa. Filtrabile per utente, commessa e responsabile.',
+    href:        '/clients/reports/commesse-per-utente',
+    icon:        Users,
+    color:       'bg-violet-50 border-violet-100',
+    iconColor:   'bg-violet-100 text-violet-600',
   },
 ]
 
