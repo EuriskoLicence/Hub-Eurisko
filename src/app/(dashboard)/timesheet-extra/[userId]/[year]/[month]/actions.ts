@@ -135,14 +135,14 @@ export async function getTimesheetExtraYearDataForUser(targetUserId: string, yea
       year,
       month,
       monthLabel:  IT_MONTHS[month - 1],
-      status:      (status?.status ?? 'not_started') as 'not_started' | 'draft' | 'approved' | 'amendment_requested' | 'amendment_rejected',
+      status:      (status?.status ?? 'not_started') as 'not_started' | 'draft' | 'approved',
       totalHours:  hoursMap.get(month) ?? 0,
       isCurrent:   year === curYear && month === curMonth,
       isFuture,
     }
   })
 
-  const submitted = months.filter((m) => m.status === 'approved' || m.status === 'amendment_requested' || m.status === 'amendment_rejected').length
+  const submitted = months.filter((m) => m.status === 'approved').length
   const draft     = months.filter((m) => m.status === 'draft').length
   const notOpened = months.filter((m) => m.status === 'not_started').length
 
@@ -309,11 +309,11 @@ export async function saveTimesheetExtraEntriesForUser(
 
     const allowedEngIds = new Set(allowedEngRows.map((r) => r.engagementId))
 
-    // Validazione entries
+    // Validazione entries (le ore possono essere negative per giroconti)
     const dayTotals = new Map<number, number>()
     for (const e of entries) {
-      if (e.hours < 1 || e.hours > 24 || !Number.isInteger(e.hours)) {
-        return { ok: false, error: `Le ore devono essere un intero tra 1 e 24 (giorno ${e.day}).` }
+      if (e.hours < -24 || e.hours > 24 || e.hours === 0 || !Number.isInteger(e.hours)) {
+        return { ok: false, error: `Le ore devono essere un intero non nullo tra -24 e 24 (giorno ${e.day}).` }
       }
       if (!e.engagementId) {
         return { ok: false, error: `Ogni riga deve essere associata a una commessa (giorno ${e.day}).` }
@@ -327,17 +327,23 @@ export async function saveTimesheetExtraEntriesForUser(
       if (total > 24) {
         return { ok: false, error: `Il giorno ${day} supera le 24 ore totali (${total}h inserite).` }
       }
+      if (total < -24) {
+        return { ok: false, error: `Il giorno ${day} scende sotto le -24 ore totali (${total}h inserite).` }
+      }
     }
 
-    // Controllo budget ore
+    // Controllo budget ore (solo commesse con ore nette positive)
     const newHoursMap: Record<string, number> = {}
     for (const e of entries) {
       if (e.engagementId) {
         newHoursMap[e.engagementId] = (newHoursMap[e.engagementId] ?? 0) + e.hours
       }
     }
+    const positiveHoursMap = Object.fromEntries(
+      Object.entries(newHoursMap).filter(([, h]) => h > 0),
+    )
     const budgetCheck = await checkEngagementBudgets({
-      newHours:     newHoursMap,
+      newHours:     positiveHoursMap,
       excludeExtra: { userId: targetUserId, year, month },
     })
     if (!budgetCheck.ok) return budgetCheck
