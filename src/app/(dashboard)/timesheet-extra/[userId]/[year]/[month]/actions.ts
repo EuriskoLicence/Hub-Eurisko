@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
@@ -219,7 +219,7 @@ export async function getTimesheetExtraPageDataForUser(
     notes:         r.notes ?? null,
   }))
 
-  // Commesse di targetUserId (solo attive)
+  // Commesse di targetUserId (solo attive — usate nel dropdown "aggiungi commessa")
   const engRows = await db
     .select({
       id:          engagements.id,
@@ -240,6 +240,34 @@ export async function getTimesheetExtraPageDataForUser(
         eq(clients.active,         true),
       ),
     )
+
+  // Recupera anche le commesse inattive referenziate dalle entry esistenti
+  // (per mostrare il nome corretto invece di "Commessa sconosciuta")
+  const activeEngIds  = new Set(engRows.map((e) => e.id))
+  const missingEngIds = [
+    ...new Set(
+      entryRows
+        .map((r) => r.engagementId)
+        .filter((id): id is string => id !== null && !activeEngIds.has(id)),
+    ),
+  ]
+
+  if (missingEngIds.length > 0) {
+    const inactiveEngRows = await db
+      .select({
+        id:          engagements.id,
+        name:        engagements.name,
+        code:        engagements.code,
+        projectName: projects.name,
+        clientName:  clients.name,
+      })
+      .from(engagements)
+      .innerJoin(projects, eq(engagements.projectId, projects.id))
+      .innerJoin(clients,  eq(projects.clientId,     clients.id))
+      .where(inArray(engagements.id, missingEngIds))
+
+    engRows.push(...inactiveEngRows)
+  }
 
   // Calendario
   const calDays = await getMonthCalendar(year, month)
