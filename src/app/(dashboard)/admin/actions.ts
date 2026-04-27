@@ -90,6 +90,7 @@ const UserCreateSchema = z.object({
 
 export async function createUser(data: {
   firstName: string; lastName: string; email: string; roleId?: string | null
+  excludeFromTimesheet?: boolean; partTime?: boolean
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -109,12 +110,14 @@ export async function createUser(data: {
       .values({
         firstName,
         lastName,
-        email:              userEmail,
+        email:                userEmail,
         passwordHash,
-        roleId:             parsed.data.roleId!,
-        active:             true,
-        mustChangePassword: true,
+        roleId:               parsed.data.roleId!,
+        active:               true,
+        mustChangePassword:   true,
         tempPassword,
+        excludeFromTimesheet: data.excludeFromTimesheet ?? false,
+        partTime:             data.partTime             ?? false,
       })
       .returning({ id: users.id })
 
