@@ -6,6 +6,7 @@ import { getClientDetail } from '../actions'
 import { Building2, FolderOpen, ChevronRight, Users, MapPin, Receipt, Phone } from 'lucide-react'
 import { ClientActions } from '@/components/clients/ClientActions'
 import { CreateProjectButton } from '@/components/clients/CreateProjectButton'
+import { countryName } from '@/components/clients/CountrySelect'
 import type { ClientDetail } from '../actions'
 
 type Props = { params: { clientId: string } }
@@ -39,7 +40,7 @@ function AnagraficaSection({ client }: { client: ClientDetail }) {
             <MapPin className="h-3.5 w-3.5" />
             Sede
           </div>
-          <InfoRow label="Paese"     value={client.paese} />
+          <InfoRow label="Paese"     value={client.paese ? `${client.paese} — ${countryName(client.paese)}` : null} />
           <InfoRow label="Indirizzo" value={client.indirizzo} />
           {(client.localita || client.provincia || client.cap) && (
             <div className="flex gap-2 text-sm">

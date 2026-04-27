@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, X } from 'lucide-react'
 import { createClient, getNextClientCode } from '@/app/(dashboard)/clients/actions'
+import { CountrySelect } from './CountrySelect'
 
 function Field({
   label, value, onChange, disabled, type = 'text', placeholder, required,
@@ -158,7 +159,7 @@ export function CreateClientButton() {
               {/* Sede */}
               <div className="rounded-lg border border-gray-200 p-4 space-y-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sede</p>
-                <Field label="Paese" value={paese} onChange={setPaese} disabled={isPending} placeholder="Italia" />
+                <CountrySelect value={paese} onChange={setPaese} disabled={isPending} />
                 <Field label="Indirizzo" value={indirizzo} onChange={setIndirizzo} disabled={isPending} placeholder="Via Roma 1" />
                 <div className="grid grid-cols-3 gap-2">
                   <div className="col-span-2">
