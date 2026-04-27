@@ -6,7 +6,7 @@ import { getClientDetail } from '../actions'
 import { Building2, FolderOpen, ChevronRight, Users, MapPin, Receipt, Phone } from 'lucide-react'
 import { ClientActions } from '@/components/clients/ClientActions'
 import { CreateProjectButton } from '@/components/clients/CreateProjectButton'
-import { countryName } from '@/components/clients/CountrySelect'
+import { countryName } from '@/lib/countries'
 import type { ClientDetail } from '../actions'
 
 type Props = { params: { clientId: string } }
