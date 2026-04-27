@@ -98,26 +98,24 @@ export function UsersClient({ users, roles }: Props) {
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    {u.roleName !== 'Admin' && (
-                      <button
-                        type="button"
-                        onClick={() => handleResetPassword(u.id)}
-                        disabled={resettingId === u.id}
-                        className={cn(
-                          'rounded p-1',
-                          resetSuccessId === u.id ? 'text-green-500' :
-                          resetErrorId   === u.id ? 'text-red-500'   :
-                          'text-gray-400 hover:text-amber-600',
-                          resettingId === u.id && 'opacity-50 cursor-not-allowed',
-                        )}
-                        title="Reimposta password"
-                      >
-                        {resetSuccessId === u.id
-                          ? <CheckCircle2 className="h-3.5 w-3.5" />
-                          : <KeyRound className="h-3.5 w-3.5" />
-                        }
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleResetPassword(u.id)}
+                      disabled={resettingId === u.id}
+                      className={cn(
+                        'rounded p-1',
+                        resetSuccessId === u.id ? 'text-green-500' :
+                        resetErrorId   === u.id ? 'text-red-500'   :
+                        'text-gray-400 hover:text-amber-600',
+                        resettingId === u.id && 'opacity-50 cursor-not-allowed',
+                      )}
+                      title="Reimposta password"
+                    >
+                      {resetSuccessId === u.id
+                        ? <CheckCircle2 className="h-3.5 w-3.5" />
+                        : <KeyRound className="h-3.5 w-3.5" />
+                      }
+                    </button>
                   </div>
                 </td>
               </tr>
