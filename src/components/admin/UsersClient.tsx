@@ -229,10 +229,12 @@ function UserModal({
         })
       } else {
         res = await createUser({
-          firstName: form.firstName,
-          lastName:  form.lastName,
-          email:     form.email,
-          roleId:    form.roleId || null,
+          firstName:            form.firstName,
+          lastName:             form.lastName,
+          email:                form.email,
+          roleId:               form.roleId || null,
+          excludeFromTimesheet: form.excludeFromTimesheet,
+          partTime:             form.partTime,
         })
       }
       if (res.ok) { onClose(); router.refresh() }
@@ -296,29 +298,29 @@ function UserModal({
             <p className="mt-1 text-xs text-gray-400">Usata per il calcolo automatico delle spese chilometriche.</p>
           </div>
 
-          {user && (
-            <div className="space-y-2">
+          <div className="space-y-2">
+            {user && (
               <div className="flex items-center gap-2">
                 <input id="u-active" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-blue-600" disabled={isPending} />
                 <label htmlFor="u-active" className="text-sm text-gray-700">Attivo</label>
               </div>
-              <div className="flex items-center gap-2">
-                <input id="u-excl-ts" type="checkbox" checked={form.excludeFromTimesheet} onChange={(e) => set('excludeFromTimesheet', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-amber-500" disabled={isPending} />
-                <label htmlFor="u-excl-ts" className="text-sm text-gray-700">
-                  Escludi da obbligo consuntivazione
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                <input id="u-part-time" type="checkbox" checked={form.partTime} onChange={(e) => set('partTime', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-500" disabled={isPending} />
-                <label htmlFor="u-part-time" className="text-sm text-gray-700">
-                  Part time
-                </label>
-              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input id="u-excl-ts" type="checkbox" checked={form.excludeFromTimesheet} onChange={(e) => set('excludeFromTimesheet', e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-amber-500" disabled={isPending} />
+              <label htmlFor="u-excl-ts" className="text-sm text-gray-700">
+                Escludi da obbligo consuntivazione
+              </label>
             </div>
-          )}
+            <div className="flex items-center gap-2">
+              <input id="u-part-time" type="checkbox" checked={form.partTime} onChange={(e) => set('partTime', e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-500" disabled={isPending} />
+              <label htmlFor="u-part-time" className="text-sm text-gray-700">
+                Part time
+              </label>
+            </div>
+          </div>
 
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} disabled={isPending}
