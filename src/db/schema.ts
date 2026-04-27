@@ -100,13 +100,25 @@ export const users = pgTable('users', {
 // ─── Anagrafica clienti / progetti / commesse ─────────────────────────────────
 
 export const clients = pgTable('clients', {
-  id:        uuid('id').primaryKey().defaultRandom(),
-  name:      text('name').notNull(),
-  code:      text('code').notNull().unique(),  // codice sequenziale 4 cifre
-  notes:     text('notes'),
-  active:    boolean('active').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  id:                  uuid('id').primaryKey().defaultRandom(),
+  name:                text('name').notNull(),
+  code:                text('code').notNull().unique(),  // codice sequenziale 4 cifre
+  notes:               text('notes'),
+  active:              boolean('active').notNull().default(true),
+  // Anagrafica estesa
+  paese:               text('paese'),
+  indirizzo:           text('indirizzo'),
+  localita:            text('localita'),
+  provincia:           text('provincia'),
+  cap:                 text('cap'),
+  partitaIva:          text('partita_iva'),
+  codiceDestinatario:  text('codice_destinatario'),
+  pec:                 text('pec'),
+  telefono:            text('telefono'),
+  email:               text('email'),
+  terminiPagamento:    text('termini_pagamento'),
+  createdAt:           timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:           timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 export const projects = pgTable('projects', {

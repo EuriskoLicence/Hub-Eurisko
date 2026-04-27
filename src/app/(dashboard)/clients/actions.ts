@@ -44,11 +44,23 @@ export type EngagementDetail = {
 }
 
 export type ClientDetail = {
-  id:       string
-  name:     string
-  code:     string
-  active:   boolean
-  projects: ProjectSummary[]
+  id:                  string
+  name:                string
+  code:                string
+  active:              boolean
+  // Anagrafica estesa
+  paese:               string | null
+  indirizzo:           string | null
+  localita:            string | null
+  provincia:           string | null
+  cap:                 string | null
+  partitaIva:          string | null
+  codiceDestinatario:  string | null
+  pec:                 string | null
+  telefono:            string | null
+  email:               string | null
+  terminiPagamento:    string | null
+  projects:            ProjectSummary[]
 }
 
 export type ProjectDetail = {
@@ -128,10 +140,21 @@ export async function getClientDetail(clientId: string): Promise<ClientDetail | 
     .orderBy(projects.name)
 
   return {
-    id:     clientRow[0].id,
-    name:   clientRow[0].name,
-    code:   clientRow[0].code,
-    active: clientRow[0].active,
+    id:                 clientRow[0].id,
+    name:               clientRow[0].name,
+    code:               clientRow[0].code,
+    active:             clientRow[0].active,
+    paese:              clientRow[0].paese ?? null,
+    indirizzo:          clientRow[0].indirizzo ?? null,
+    localita:           clientRow[0].localita ?? null,
+    provincia:          clientRow[0].provincia ?? null,
+    cap:                clientRow[0].cap ?? null,
+    partitaIva:         clientRow[0].partitaIva ?? null,
+    codiceDestinatario: clientRow[0].codiceDestinatario ?? null,
+    pec:                clientRow[0].pec ?? null,
+    telefono:           clientRow[0].telefono ?? null,
+    email:              clientRow[0].email ?? null,
+    terminiPagamento:   clientRow[0].terminiPagamento ?? null,
     projects: projectRows.map((p) => ({
       id:                p.id,
       name:              p.name,
@@ -305,11 +328,37 @@ export async function getNextEngagementCode(projectId: string): Promise<string> 
 // ─── Client CRUD ──────────────────────────────────────────────────────────────
 
 const ClientSchema = z.object({
-  name: z.string().min(2, 'Il nome è obbligatorio (min 2 caratteri).').max(100),
+  name:               z.string().min(2, 'Il nome è obbligatorio (min 2 caratteri).'),
+  paese:              z.string().optional().nullable(),
+  indirizzo:          z.string().optional().nullable(),
+  localita:           z.string().optional().nullable(),
+  provincia:          z.string().optional().nullable(),
+  cap:                z.string().optional().nullable(),
+  partitaIva:         z.string().optional().nullable(),
+  codiceDestinatario: z.string().optional().nullable(),
+  pec:                z.string().optional().nullable(),
+  telefono:           z.string().optional().nullable(),
+  email:              z.string().optional().nullable(),
+  terminiPagamento:   z.string().optional().nullable(),
 })
 
+export type ClientFormData = {
+  name:               string
+  paese?:             string | null
+  indirizzo?:         string | null
+  localita?:          string | null
+  provincia?:         string | null
+  cap?:               string | null
+  partitaIva?:        string | null
+  codiceDestinatario?: string | null
+  pec?:               string | null
+  telefono?:          string | null
+  email?:             string | null
+  terminiPagamento?:  string | null
+}
+
 export async function createClient(
-  data: { name: string },
+  data: ClientFormData,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -322,9 +371,25 @@ export async function createClient(
     const clientMaxNum = allClientCodes.reduce((m, r) => Math.max(m, parseInt(r.code ?? '0', 10) || 0), 0)
     const code = String(clientMaxNum + 1).padStart(4, '0')
 
+    const d = parsed.data
     const [row] = await db
       .insert(clients)
-      .values({ name: parsed.data.name.trim(), code, active: true })
+      .values({
+        name:               d.name.trim(),
+        code,
+        active:             true,
+        paese:              d.paese || null,
+        indirizzo:          d.indirizzo || null,
+        localita:           d.localita || null,
+        provincia:          d.provincia || null,
+        cap:                d.cap || null,
+        partitaIva:         d.partitaIva || null,
+        codiceDestinatario: d.codiceDestinatario || null,
+        pec:                d.pec || null,
+        telefono:           d.telefono || null,
+        email:              d.email || null,
+        terminiPagamento:   d.terminiPagamento || null,
+      })
       .returning({ id: clients.id })
 
     revalidatePath('/clients')
@@ -338,7 +403,7 @@ export async function createClient(
 
 export async function updateClient(
   id: string,
-  data: { name?: string; active?: boolean },
+  data: Partial<ClientFormData> & { active?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -351,7 +416,21 @@ export async function updateClient(
 
     await db
       .update(clients)
-      .set({ ...(data.name && { name: data.name.trim() }), ...(data.active !== undefined && { active: data.active }) })
+      .set({
+        ...(data.name                !== undefined && { name:               data.name.trim() }),
+        ...(data.active              !== undefined && { active:             data.active }),
+        ...(data.paese               !== undefined && { paese:              data.paese || null }),
+        ...(data.indirizzo           !== undefined && { indirizzo:          data.indirizzo || null }),
+        ...(data.localita            !== undefined && { localita:           data.localita || null }),
+        ...(data.provincia           !== undefined && { provincia:          data.provincia || null }),
+        ...(data.cap                 !== undefined && { cap:                data.cap || null }),
+        ...(data.partitaIva          !== undefined && { partitaIva:         data.partitaIva || null }),
+        ...(data.codiceDestinatario  !== undefined && { codiceDestinatario: data.codiceDestinatario || null }),
+        ...(data.pec                 !== undefined && { pec:                data.pec || null }),
+        ...(data.telefono            !== undefined && { telefono:           data.telefono || null }),
+        ...(data.email               !== undefined && { email:              data.email || null }),
+        ...(data.terminiPagamento    !== undefined && { terminiPagamento:   data.terminiPagamento || null }),
+      })
       .where(eq(clients.id, id))
 
     revalidatePath('/clients')

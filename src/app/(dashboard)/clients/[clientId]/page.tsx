@@ -3,14 +3,80 @@ import Link from 'next/link'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getClientDetail } from '../actions'
-import { Building2, FolderOpen, ChevronRight, Users } from 'lucide-react'
+import { Building2, FolderOpen, ChevronRight, Users, MapPin, Receipt, Phone } from 'lucide-react'
 import { ClientActions } from '@/components/clients/ClientActions'
 import { CreateProjectButton } from '@/components/clients/CreateProjectButton'
+import type { ClientDetail } from '../actions'
 
 type Props = { params: { clientId: string } }
 
 export async function generateMetadata({ params }: Props) {
   return { title: 'Dettaglio cliente' }
+}
+
+function InfoRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null
+  return (
+    <div className="flex gap-2 text-sm">
+      <span className="text-gray-500 w-40 shrink-0">{label}</span>
+      <span className="text-gray-900 break-all">{value}</span>
+    </div>
+  )
+}
+
+function AnagraficaSection({ client }: { client: ClientDetail }) {
+  const hasAddress = client.paese || client.indirizzo || client.localita || client.provincia || client.cap
+  const hasFiscal  = client.partitaIva || client.codiceDestinatario || client.pec
+  const hasContact = client.telefono || client.email || client.terminiPagamento
+
+  if (!hasAddress && !hasFiscal && !hasContact) return null
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+      {hasAddress && (
+        <div className="px-5 py-4 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            <MapPin className="h-3.5 w-3.5" />
+            Sede
+          </div>
+          <InfoRow label="Paese"     value={client.paese} />
+          <InfoRow label="Indirizzo" value={client.indirizzo} />
+          {(client.localita || client.provincia || client.cap) && (
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-500 w-40 shrink-0">Città</span>
+              <span className="text-gray-900">
+                {[client.localita, client.provincia, client.cap].filter(Boolean).join(' · ')}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {hasFiscal && (
+        <div className="px-5 py-4 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            <Receipt className="h-3.5 w-3.5" />
+            Dati fiscali
+          </div>
+          <InfoRow label="Partita IVA"           value={client.partitaIva} />
+          <InfoRow label="Codice Destinatario"   value={client.codiceDestinatario} />
+          <InfoRow label="PEC"                   value={client.pec} />
+        </div>
+      )}
+
+      {hasContact && (
+        <div className="px-5 py-4 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
+            <Phone className="h-3.5 w-3.5" />
+            Contatti e pagamento
+          </div>
+          <InfoRow label="Telefono"              value={client.telefono} />
+          <InfoRow label="Email"                 value={client.email} />
+          <InfoRow label="Termini di pagamento"  value={client.terminiPagamento} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default async function ClientDetailPage({ params }: Props) {
@@ -48,6 +114,9 @@ export default async function ClientDetailPage({ params }: Props) {
           {canManage && <ClientActions client={client} />}
         </div>
       </div>
+
+      {/* Anagrafica estesa */}
+      <AnagraficaSection client={client} />
 
       {/* Progetti */}
       <div className="space-y-3">
