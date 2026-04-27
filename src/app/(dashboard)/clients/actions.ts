@@ -221,6 +221,7 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
         .from(engagementUsers)
         .innerJoin(users, eq(users.id, engagementUsers.userId))
         .where(sql`${engagementUsers.engagementId} = ANY(ARRAY[${sql.join(engagementIds.map((id) => sql`${id}::uuid`), sql`, `)}])`)
+        .orderBy(users.lastName, users.firstName)
     : []
 
   const assignedByEng = new Map<string, { userId: string; fullName: string; email: string }[]>()
