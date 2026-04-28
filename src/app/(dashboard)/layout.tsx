@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { getPendingAmendmentCount } from './finance/actions'
+import Image from 'next/image'
 
 // Server component: legge la sessione e passa le sezioni alla Sidebar
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -33,7 +34,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* Spacer per mobile (compensate l'header fisso) */}
         <div className="lg:hidden h-14" />
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">
+        {/* Top bar con logo Eurisko */}
+        <div className="flex justify-end px-4 pt-4 sm:px-6 lg:px-8">
+          <Image
+            src="/eurisko.png"
+            alt="Eurisko"
+            width={160}
+            height={48}
+            className="object-contain"
+            priority
+          />
+        </div>
+
+        <main className="px-4 py-4 sm:px-6 lg:px-8">
           {children}
         </main>
       </div>
