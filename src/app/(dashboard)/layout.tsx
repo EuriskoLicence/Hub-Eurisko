@@ -39,8 +39,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <Image
             src="/eurisko.png"
             alt="Eurisko"
-            width={160}
-            height={48}
+            width={100}
+            height={30}
             className="object-contain"
             priority
           />
