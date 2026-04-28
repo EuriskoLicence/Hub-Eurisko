@@ -308,6 +308,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
 
   function handleSubmit() {
     if (!validateBeforeSubmit()) return
+    if (!window.confirm('Inviare definitivamente la nota spese? Non potrai più modificarla senza richiedere una rettifica.')) return
     // Se ci sono righe km-based con dati, mostra prima la conferma tariffa
     if (kmRowsWithData.length > 0) {
       setShowKmConfirm(true)
@@ -408,7 +409,7 @@ export function ExpenseGrid({ data, canRequestAmendment, readOnly = false }: Pro
               type="button"
               onClick={handleSave}
               disabled={isPending}
-              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg border border-yellow-300 bg-yellow-400 px-4 py-2 text-sm font-semibold text-yellow-900 hover:bg-yellow-500 transition-colors disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
               {isPending ? 'Salvataggio…' : 'Salva bozza'}
