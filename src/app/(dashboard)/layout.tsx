@@ -34,8 +34,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {/* Spacer per mobile (compensate l'header fisso) */}
         <div className="lg:hidden h-14" />
 
-        {/* Top bar con logo Eurisko */}
-        <div className="flex justify-end px-4 pt-4 sm:px-6 lg:px-8">
+        {/* Top bar con logo Eurisko — solo desktop */}
+        <div className="hidden lg:flex justify-end px-4 pt-4 sm:px-6 lg:px-8">
           <Image
             src="/eurisko.png"
             alt="Eurisko"
