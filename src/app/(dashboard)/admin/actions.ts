@@ -16,6 +16,7 @@ import type { SectionCode } from '@/lib/permissions/sections'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { sendWelcomeEmail, sendPasswordResetEmail } from '@/lib/email'
+import { validatePassword } from '@/lib/password-rules'
 
 // ─── USERS ────────────────────────────────────────────────────────────────────
 
@@ -164,7 +165,8 @@ export async function updateUser(
       }
     }
     if (data.newPassword) {
-      if (data.newPassword.length < 8) return { ok: false, error: 'Password minimo 8 caratteri.' }
+      const pwdError = validatePassword(data.newPassword)
+      if (pwdError) return { ok: false, error: pwdError }
       set.passwordHash = await bcrypt.hash(data.newPassword, 12)
     }
 

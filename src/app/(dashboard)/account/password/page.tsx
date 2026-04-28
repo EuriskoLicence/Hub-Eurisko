@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { KeyRound, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { changePassword } from './actions'
+import { validatePassword, PASSWORD_HINT } from '@/lib/password-rules'
 
 function PasswordInput({
   id, label, value, onChange, placeholder,
@@ -54,6 +55,9 @@ export default function ChangePasswordPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    const pwdError = validatePassword(next)
+    if (pwdError) { setError(pwdError); return }
 
     if (next !== confirm) {
       setError('La nuova password e la conferma non coincidono.')
@@ -111,7 +115,7 @@ export default function ChangePasswordPage() {
               label="Nuova password"
               value={next}
               onChange={setNext}
-              placeholder="Almeno 8 caratteri"
+              placeholder={PASSWORD_HINT}
             />
             <PasswordInput
               id="confirm"

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { KeyRound } from 'lucide-react'
 import { forceChangePassword } from './actions'
+import { validatePassword, PASSWORD_HINT } from '@/lib/password-rules'
 
 export default function ChangePasswordPage() {
   const router = useRouter()
@@ -18,7 +19,8 @@ export default function ChangePasswordPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    if (newPwd.length < 8) { setError('La password deve avere almeno 8 caratteri.'); return }
+    const pwdError = validatePassword(newPwd)
+    if (pwdError) { setError(pwdError); return }
     if (newPwd !== confirmPwd) { setError('Le password non coincidono.'); return }
 
     startTransition(async () => {
@@ -63,7 +65,7 @@ export default function ChangePasswordPage() {
                   onChange={(e) => setNewPwd(e.target.value)}
                   disabled={isPending}
                   className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                  placeholder="Minimo 8 caratteri"
+                  placeholder={PASSWORD_HINT}
                 />
               </div>
               <div>

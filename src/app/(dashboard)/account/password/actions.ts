@@ -6,6 +6,7 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import { users } from '@/db/schema'
 import { requireAuthenticated } from '@/lib/permissions/auth-helpers'
+import { validatePassword } from '@/lib/password-rules'
 
 export async function changePassword(
   currentPassword: string,
@@ -19,9 +20,8 @@ export async function changePassword(
     if (!currentPassword || !newPassword) {
       return { ok: false, error: 'Tutti i campi sono obbligatori.' }
     }
-    if (newPassword.length < 8) {
-      return { ok: false, error: 'La nuova password deve avere almeno 8 caratteri.' }
-    }
+    const pwdError = validatePassword(newPassword)
+    if (pwdError) return { ok: false, error: pwdError }
     if (currentPassword === newPassword) {
       return { ok: false, error: 'La nuova password deve essere diversa da quella attuale.' }
     }
