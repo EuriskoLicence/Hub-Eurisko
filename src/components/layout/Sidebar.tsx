@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   Clock, Receipt, BarChart2, Building2, FolderOpen,
@@ -300,18 +301,28 @@ export function Sidebar({
       </aside>
 
       {/* ── Mobile: header con hamburger ── */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 flex h-14 items-center border-b border-gray-200 bg-white px-4 gap-3">
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100"
-          aria-label="Apri menu"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-        <span className="text-sm font-semibold text-gray-900">
-          {process.env.NEXT_PUBLIC_APP_NAME ?? 'HR Portal'}
-        </span>
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100"
+            aria-label="Apri menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <span className="text-sm font-semibold text-gray-900">
+            {process.env.NEXT_PUBLIC_APP_NAME ?? 'HR Portal'}
+          </span>
+        </div>
+        <Image
+          src="/eurisko.png"
+          alt="Eurisko"
+          width={80}
+          height={24}
+          className="object-contain"
+          priority
+        />
       </div>
 
       {/* ── Mobile: overlay ── */}
