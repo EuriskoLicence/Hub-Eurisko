@@ -4,21 +4,43 @@ import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { db } from '@/db'
 import { projects, clients, users, engagements } from '@/db/schema'
-import { eq, sql, and } from 'drizzle-orm'
+import { eq, sql, and, isNotNull, asc } from 'drizzle-orm'
 import { FolderOpen, Users, ChevronRight, Building2 } from 'lucide-react'
 import { ActiveOnlyToggle } from '@/components/ui/ActiveOnlyToggle'
+import { ResponsibleFilter } from '@/components/ui/ResponsibleFilter'
 
 export const metadata = { title: 'Progetti' }
 
-type Props = { searchParams: { onlyActive?: string } }
+type Props = { searchParams: { onlyActive?: string; responsibleId?: string } }
 
 export default async function ProjectsListPage({ searchParams }: Props) {
   const session = await auth()
   if (!session || !hasSection(session, 'CLIENTS_VIEW')) redirect('/dashboard')
 
-  const onlyActive = searchParams.onlyActive === '1'
+  const onlyActive      = searchParams.onlyActive === '1'
+  const responsibleId   = searchParams.responsibleId ?? ''
 
-  const where = onlyActive ? eq(projects.active, true) : undefined
+  // Costruisce le condizioni WHERE
+  const conditions = [
+    onlyActive    ? eq(projects.active, true)                     : undefined,
+    responsibleId ? eq(projects.responsibleUserId, responsibleId) : undefined,
+  ].filter(Boolean) as any[]
+
+  const where = conditions.length === 1 ? conditions[0]
+              : conditions.length  >  1 ? and(...conditions)
+              : undefined
+
+  // Lista responsabili per il filtro (solo utenti che hanno almeno un progetto)
+  const responsibleOptions = await db
+    .selectDistinct({
+      id:        users.id,
+      firstName: users.firstName,
+      lastName:  users.lastName,
+    })
+    .from(projects)
+    .innerJoin(users, eq(users.id, projects.responsibleUserId))
+    .where(isNotNull(projects.responsibleUserId))
+    .orderBy(asc(users.lastName), asc(users.firstName))
 
   const rows = await db
     .select({
@@ -43,7 +65,7 @@ export default async function ProjectsListPage({ searchParams }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
             <FolderOpen className="h-5 w-5 text-blue-600" />
@@ -53,7 +75,13 @@ export default async function ProjectsListPage({ searchParams }: Props) {
             <p className="text-sm text-gray-500">{rows.length} {rows.length === 1 ? 'progetto' : 'progetti'}</p>
           </div>
         </div>
-        <ActiveOnlyToggle checked={onlyActive} label="Solo attivi" />
+        <div className="flex items-center gap-3 flex-wrap">
+          <ResponsibleFilter
+            options={responsibleOptions.map((u) => ({ id: u.id, name: `${u.lastName} ${u.firstName}` }))}
+            value={responsibleId}
+          />
+          <ActiveOnlyToggle checked={onlyActive} label="Solo attivi" />
+        </div>
       </div>
 
       {rows.length === 0 ? (
