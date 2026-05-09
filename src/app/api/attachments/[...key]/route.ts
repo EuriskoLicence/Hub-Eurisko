@@ -13,8 +13,17 @@ export async function GET(
   // Ricostruisce la chiave R2 dai segmenti del path
   const key = params.key.join('/')
 
-  // Sicurezza: l'utente può accedere solo ai propri file,
-  // a meno che non abbia accesso Finance (per visualizzare allegati di altri utenti)
+  // Branch OdA: chiunque abbia VIEW o MANAGE può visualizzare gli allegati
+  if (key.startsWith('purchase-orders/')) {
+    const canView = hasSection(session, 'PURCHASE_ORDERS_VIEW') ||
+                    hasSection(session, 'PURCHASE_ORDERS_MANAGE')
+    if (!canView) return NextResponse.json({ error: 'Accesso negato.' }, { status: 403 })
+
+    const url = await getPresignedGetUrl(key)
+    return NextResponse.redirect(url)
+  }
+
+  // Branch note spese (esistente)
   const isOwner       = key.startsWith(`expenses/${session.user.id}/`)
   const hasFinance    = hasSection(session, 'FINANCE_DASHBOARD') ||
                         hasSection(session, 'FINANCE_AMENDMENT')
@@ -37,7 +46,16 @@ export async function DELETE(
 
   const key = params.key.join('/')
 
-  // Solo il proprietario può cancellare i propri file
+  // Branch OdA: solo MANAGE può eliminare gli allegati
+  if (key.startsWith('purchase-orders/')) {
+    if (!hasSection(session, 'PURCHASE_ORDERS_MANAGE')) {
+      return NextResponse.json({ error: 'Accesso negato.' }, { status: 403 })
+    }
+    await deleteObject(key)
+    return NextResponse.json({ ok: true })
+  }
+
+  // Branch note spese (esistente): solo il proprietario può cancellare
   const isOwner = key.startsWith(`expenses/${session.user.id}/`)
   if (!isOwner) {
     return NextResponse.json({ error: 'Accesso negato.' }, { status: 403 })

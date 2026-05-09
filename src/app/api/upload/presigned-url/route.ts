@@ -2,14 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { z } from 'zod'
 import { auth } from '@/auth'
+import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getPresignedPutUrl, ALLOWED_MIME_TYPES } from '@/lib/r2'
 
-const schema = z.object({
-  filename:    z.string().min(1).max(255),
-  contentType: z.enum(ALLOWED_MIME_TYPES),
-  year:        z.number().int().min(2020).max(2100),
-  month:       z.number().int().min(1).max(12),
-})
+// Schema legacy (note spese): kind opzionale o assente → comportamento esistente.
+// Nuovo schema (purchase-order): richiede kind='purchase-order' + purchaseOrderId.
+const schema = z.discriminatedUnion('kind', [
+  z.object({
+    kind:        z.literal('expense').optional(),
+    filename:    z.string().min(1).max(255),
+    contentType: z.enum(ALLOWED_MIME_TYPES),
+    year:        z.number().int().min(2020).max(2100),
+    month:       z.number().int().min(1).max(12),
+  }),
+  z.object({
+    kind:            z.literal('purchase-order'),
+    filename:        z.string().min(1).max(255),
+    contentType:     z.enum(ALLOWED_MIME_TYPES),
+    purchaseOrderId: z.string().uuid(),
+  }),
+])
 
 // Rate limiting semplice in memoria (max 20 req/min per IP)
 const ipCounters = new Map<string, { count: number; resetAt: number }>()
@@ -49,12 +61,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tipo file non supportato o nome file mancante.' }, { status: 400 })
   }
 
-  const { filename, contentType, year, month } = parsed.data
-  const ext  = filename.split('.').pop()?.toLowerCase() ?? 'bin'
-  // Chiave: expenses/{userId}/{anno}/{mese}/{uuid}.{ext}
-  // anno e mese vengono dal client (mese della nota spese, non data odierna)
-  const mese = String(month).padStart(2, '0')
-  const key  = `expenses/${session.user.id}/${year}/${mese}/${randomUUID()}.${ext}`
+  const { filename, contentType } = parsed.data
+  const ext = filename.split('.').pop()?.toLowerCase() ?? 'bin'
+
+  let key: string
+  if (parsed.data.kind === 'purchase-order') {
+    // Solo chi gestisce gli OdA può caricare allegati nella cartella purchase-orders/
+    if (!hasSection(session, 'PURCHASE_ORDERS_MANAGE')) {
+      return NextResponse.json({ error: 'Non autorizzato.' }, { status: 403 })
+    }
+    key = `purchase-orders/${parsed.data.purchaseOrderId}/${randomUUID()}.${ext}`
+  } else {
+    // Comportamento esistente per le note spese
+    const { year, month } = parsed.data
+    const mese = String(month).padStart(2, '0')
+    key = `expenses/${session.user.id}/${year}/${mese}/${randomUUID()}.${ext}`
+  }
 
   const url = await getPresignedPutUrl(key, contentType)
   return NextResponse.json({ url, key })
