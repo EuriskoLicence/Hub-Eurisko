@@ -6,10 +6,15 @@ import { Plus, Pencil, X, CheckCircle2, XCircle } from 'lucide-react'
 import {
   createAbsenceType, updateAbsenceType,
   createEngagementType, updateEngagementType,
+  createEngagementStatus, updateEngagementStatus,
+  createPurchaseOrderLineStatus, updatePurchaseOrderLineStatus,
 } from '@/app/(dashboard)/admin/actions'
 
 type Item = { id: string; code?: string; shortCode?: string | null; label: string; active: boolean; partTimeOnly?: boolean }
-type Type = 'absences' | 'engagement-types'
+type Type = 'absences' | 'engagement-types' | 'engagement-statuses' | 'po-line-statuses'
+
+// Types che usano un codice 3 caratteri alfanumerici + descrizione
+const isCodeListType = (t: Type) => t === 'engagement-statuses' || t === 'po-line-statuses'
 
 type Props = { type: Type; items: Item[] }
 
@@ -26,7 +31,10 @@ export function SimpleListClient({ type, items }: Props) {
           className="flex items-center gap-2 rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
         >
           <Plus className="h-4 w-4" />
-          {type === 'absences' ? 'Nuova voce' : 'Nuova tipologia'}
+          {type === 'absences'            ? 'Nuova voce'
+           : type === 'engagement-types'  ? 'Nuova tipologia'
+           : type === 'engagement-statuses' ? 'Nuovo stato commessa'
+           :                                  'Nuovo stato posizione OdA'}
         </button>
       </div>
 
@@ -37,7 +45,12 @@ export function SimpleListClient({ type, items }: Props) {
               {type === 'absences' && (
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-24">Cod. breve</th>
               )}
-              <th className="text-left px-4 py-3 font-medium text-gray-600">Label</th>
+              {isCodeListType(type) && (
+                <th className="text-left px-4 py-3 font-medium text-gray-600 w-24">Codice</th>
+              )}
+              <th className="text-left px-4 py-3 font-medium text-gray-600">
+                {isCodeListType(type) ? 'Descrizione' : 'Label'}
+              </th>
               {type === 'absences' && (
                 <th className="text-center px-4 py-3 font-medium text-gray-600 w-24">Solo PT</th>
               )}
@@ -61,6 +74,11 @@ export function SimpleListClient({ type, items }: Props) {
                       ? <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-700">{item.shortCode}</span>
                       : <span className="text-xs text-red-400 italic">mancante</span>
                     }
+                  </td>
+                )}
+                {isCodeListType(type) && (
+                  <td className="px-4 py-3">
+                    <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-gray-700">{item.code}</span>
                   </td>
                 )}
                 <td className="px-4 py-3 text-gray-900">{item.label}</td>
@@ -105,6 +123,7 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [shortCode,    setShortCode]    = useState(item?.shortCode    ?? '')
+  const [code,         setCode]         = useState(item?.code         ?? '')   // 3 char per stati
   const [label,        setLabel]        = useState(item?.label        ?? '')
   const [active,       setActive]       = useState(item?.active       ?? true)
   const [partTimeOnly, setPartTimeOnly] = useState(item?.partTimeOnly ?? false)
@@ -119,24 +138,36 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
         res = item
           ? await updateAbsenceType(item.id, { shortCode, label, active, partTimeOnly })
           : await createAbsenceType({ shortCode, label, partTimeOnly })
-      } else {
+      } else if (type === 'engagement-types') {
         res = item
           ? await updateEngagementType(item.id, { name: label, active })
           : await createEngagementType({ name: label })
+      } else if (type === 'engagement-statuses') {
+        res = item
+          ? await updateEngagementStatus(item.id, { code, description: label, active })
+          : await createEngagementStatus({ code, description: label })
+      } else {
+        // po-line-statuses
+        res = item
+          ? await updatePurchaseOrderLineStatus(item.id, { code, description: label, active })
+          : await createPurchaseOrderLineStatus({ code, description: label })
       }
       if (res.ok) { onClose(); router.refresh() }
       else setError((res as any).error)
     })
   }
 
-  const shortCodeValid = shortCode.trim().length === 0 || /^[A-Z0-9]{1,2}$/i.test(shortCode.trim())
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">
-            {item ? 'Modifica' : (type === 'absences' ? 'Nuova voce assenza' : 'Nuova tipologia commessa')}
+            {item ? 'Modifica' : (
+              type === 'absences'              ? 'Nuova voce assenza'
+              : type === 'engagement-types'    ? 'Nuova tipologia commessa'
+              : type === 'engagement-statuses' ? 'Nuovo stato commessa'
+              :                                  'Nuovo stato posizione OdA'
+            )}
           </h2>
           <button type="button" onClick={onClose}><X className="h-5 w-5 text-gray-400" /></button>
         </div>
@@ -164,13 +195,36 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
             </div>
           )}
 
+          {/* Codice 3 caratteri — per stati commessa / stati posizione OdA */}
+          {isCodeListType(type) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Codice * <span className="text-gray-400 font-normal">(3 caratteri alfanumerici)</span>
+              </label>
+              <input
+                type="text"
+                value={code}
+                maxLength={3}
+                onChange={(e) => { setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')); setError('') }}
+                placeholder="es. PRE"
+                className="w-24 rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono tracking-widest
+                           focus:outline-none focus:ring-2 focus:ring-gray-500"
+              />
+              {code.length > 0 && code.length < 3 && (
+                <p className="mt-1 text-xs text-amber-600">Inserisci esattamente 3 caratteri</p>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              {type === 'absences' ? 'Label *' : 'Nome *'}
+              {type === 'absences'           ? 'Label *'
+               : type === 'engagement-types' ? 'Nome *'
+               :                               'Descrizione *'}
             </label>
             <input type="text" value={label}
               onChange={(e) => { setLabel(e.target.value); setError('') }}
-              placeholder={type === 'absences' ? 'es. Ferie' : 'es. Time & Material'}
+              placeholder={type === 'absences' ? 'es. Ferie' : type === 'engagement-types' ? 'es. Time & Material' : 'es. In preparazione'}
               className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm
                          focus:outline-none focus:ring-2 focus:ring-gray-500" />
           </div>
@@ -202,7 +256,8 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
               disabled={
                 isPending ||
                 !label.trim() ||
-                (type === 'absences' && shortCode.trim().length !== 2)
+                (type === 'absences'    && shortCode.trim().length !== 2) ||
+                (isCodeListType(type)   && code.trim().length      !== 3)
               }
               className="flex-1 rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50">
               {isPending ? 'Salvataggio…' : item ? 'Salva' : 'Crea'}

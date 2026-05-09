@@ -7,6 +7,7 @@ import { db } from '@/db'
 import {
   users, roles, profiles, profileSections, roleProfiles,
   absenceTypes, expenseCategories, engagementTypes,
+  engagementStatuses, purchaseOrderLineStatuses,
   italianHolidays,
 } from '@/db/schema'
 import { requireSection, HttpError } from '@/lib/permissions/auth-helpers'
@@ -601,6 +602,142 @@ export async function deleteHoliday(id: string): Promise<{ ok: true } | { ok: fa
     return { ok: true }
   } catch (err) {
     if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+// ─── ENGAGEMENT STATUSES (stati commessa) ────────────────────────────────────
+
+export type EngagementStatusRow = { id: string; code: string; description: string; active: boolean }
+
+const StatusCodeRegex = /^[A-Z0-9]{3}$/
+
+export async function getEngagementStatuses(): Promise<EngagementStatusRow[]> {
+  const session = await auth()
+  requireSection(session, 'PARAM_ENGAGEMENT_STATUSES')
+  return db
+    .select({ id: engagementStatuses.id, code: engagementStatuses.code, description: engagementStatuses.description, active: engagementStatuses.active })
+    .from(engagementStatuses)
+    .orderBy(engagementStatuses.code)
+}
+
+export async function createEngagementStatus(
+  data: { code: string; description: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ENGAGEMENT_STATUSES')
+
+    const code = data.code.trim().toUpperCase()
+    const description = data.description.trim()
+
+    if (!StatusCodeRegex.test(code)) return { ok: false, error: 'Il codice deve essere di 3 caratteri alfanumerici (A-Z, 0-9).' }
+    if (!description) return { ok: false, error: 'La descrizione è obbligatoria.' }
+
+    await db.insert(engagementStatuses).values({ code, description, active: true })
+    revalidatePath('/admin/engagement-statuses')
+    return { ok: true }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Codice già in uso.' }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updateEngagementStatus(
+  id: string,
+  data: { code?: string; description?: string; active?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_ENGAGEMENT_STATUSES')
+
+    const set: Record<string, unknown> = { updatedAt: new Date() }
+    if (data.code !== undefined) {
+      const code = data.code.trim().toUpperCase()
+      if (!StatusCodeRegex.test(code)) return { ok: false, error: 'Il codice deve essere di 3 caratteri alfanumerici (A-Z, 0-9).' }
+      set.code = code
+    }
+    if (data.description !== undefined) {
+      const description = data.description.trim()
+      if (!description) return { ok: false, error: 'La descrizione è obbligatoria.' }
+      set.description = description
+    }
+    if (data.active !== undefined) set.active = data.active
+
+    await db.update(engagementStatuses).set(set).where(eq(engagementStatuses.id, id))
+    revalidatePath('/admin/engagement-statuses')
+    return { ok: true }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Codice già in uso.' }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+// ─── PURCHASE ORDER LINE STATUSES (stati posizione OdA) ──────────────────────
+
+export type PurchaseOrderLineStatusRow = { id: string; code: string; description: string; active: boolean }
+
+export async function getPurchaseOrderLineStatuses(): Promise<PurchaseOrderLineStatusRow[]> {
+  const session = await auth()
+  requireSection(session, 'PARAM_PO_LINE_STATUSES')
+  return db
+    .select({ id: purchaseOrderLineStatuses.id, code: purchaseOrderLineStatuses.code, description: purchaseOrderLineStatuses.description, active: purchaseOrderLineStatuses.active })
+    .from(purchaseOrderLineStatuses)
+    .orderBy(purchaseOrderLineStatuses.code)
+}
+
+export async function createPurchaseOrderLineStatus(
+  data: { code: string; description: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_PO_LINE_STATUSES')
+
+    const code = data.code.trim().toUpperCase()
+    const description = data.description.trim()
+
+    if (!StatusCodeRegex.test(code)) return { ok: false, error: 'Il codice deve essere di 3 caratteri alfanumerici (A-Z, 0-9).' }
+    if (!description) return { ok: false, error: 'La descrizione è obbligatoria.' }
+
+    await db.insert(purchaseOrderLineStatuses).values({ code, description, active: true })
+    revalidatePath('/admin/po-line-statuses')
+    return { ok: true }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Codice già in uso.' }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+export async function updatePurchaseOrderLineStatus(
+  id: string,
+  data: { code?: string; description?: string; active?: boolean },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PARAM_PO_LINE_STATUSES')
+
+    const set: Record<string, unknown> = { updatedAt: new Date() }
+    if (data.code !== undefined) {
+      const code = data.code.trim().toUpperCase()
+      if (!StatusCodeRegex.test(code)) return { ok: false, error: 'Il codice deve essere di 3 caratteri alfanumerici (A-Z, 0-9).' }
+      set.code = code
+    }
+    if (data.description !== undefined) {
+      const description = data.description.trim()
+      if (!description) return { ok: false, error: 'La descrizione è obbligatoria.' }
+      set.description = description
+    }
+    if (data.active !== undefined) set.active = data.active
+
+    await db.update(purchaseOrderLineStatuses).set(set).where(eq(purchaseOrderLineStatuses.id, id))
+    revalidatePath('/admin/po-line-statuses')
+    return { ok: true }
+  } catch (err: any) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    if (err.code === '23505') return { ok: false, error: 'Codice già in uso.' }
     return { ok: false, error: 'Errore del server.' }
   }
 }
