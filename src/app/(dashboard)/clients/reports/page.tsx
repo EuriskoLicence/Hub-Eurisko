@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { BarChart2, Clock, ChevronRight, List, Users } from 'lucide-react'
+import { BarChart2, Clock, ChevronRight, List, Users, ShoppingCart, Tag } from 'lucide-react'
 import Link from 'next/link'
 
 export const metadata = { title: 'Report' }
@@ -13,6 +13,7 @@ type ReportCard = {
   icon:        React.ElementType
   color:       string
   iconColor:   string
+  requires?:   'CLIENTS_VIEW' | 'PURCHASE_ORDERS_VIEW'
 }
 
 const REPORTS: ReportCard[] = [
@@ -23,6 +24,7 @@ const REPORTS: ReportCard[] = [
     icon:        Clock,
     color:       'bg-amber-50 border-amber-100',
     iconColor:   'bg-amber-100 text-amber-600',
+    requires:    'CLIENTS_VIEW',
   },
   {
     title:       'Report lista commesse',
@@ -31,6 +33,7 @@ const REPORTS: ReportCard[] = [
     icon:        List,
     color:       'bg-blue-50 border-blue-100',
     iconColor:   'bg-blue-100 text-blue-600',
+    requires:    'CLIENTS_VIEW',
   },
   {
     title:       'Elenco commesse per utente',
@@ -39,12 +42,34 @@ const REPORTS: ReportCard[] = [
     icon:        Users,
     color:       'bg-violet-50 border-violet-100',
     iconColor:   'bg-violet-100 text-violet-600',
+    requires:    'CLIENTS_VIEW',
+  },
+  {
+    title:       'Lista OdA',
+    description: 'Elenco di tutti gli Ordini di Acquisto con dettaglio testata e posizioni. Filtrabile per cliente e responsabile.',
+    href:        '/clients/reports/oda-list',
+    icon:        ShoppingCart,
+    color:       'bg-purple-50 border-purple-100',
+    iconColor:   'bg-purple-100 text-purple-600',
+    requires:    'PURCHASE_ORDERS_VIEW',
+  },
+  {
+    title:       'OdA per commessa',
+    description: 'Riepilogo OdA collegati a ogni commessa (escluse tipologie «NO OdA»). Le commesse senza OdA sono comunque elencate.',
+    href:        '/clients/reports/oda-per-commessa',
+    icon:        Tag,
+    color:       'bg-fuchsia-50 border-fuchsia-100',
+    iconColor:   'bg-fuchsia-100 text-fuchsia-600',
+    requires:    'PURCHASE_ORDERS_VIEW',
   },
 ]
 
 export default async function ClientReportsHubPage() {
   const session = await auth()
   if (!session || !hasSection(session, 'CLIENTS_VIEW')) redirect('/dashboard')
+
+  // Filtra le card in base ai permessi dell'utente
+  const visibleReports = REPORTS.filter((r) => !r.requires || hasSection(session, r.requires))
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -61,7 +86,7 @@ export default async function ClientReportsHubPage() {
 
       {/* Cards */}
       <div className="grid gap-4 sm:grid-cols-2">
-        {REPORTS.map((r) => {
+        {visibleReports.map((r) => {
           const Icon = r.icon
           return (
             <Link
