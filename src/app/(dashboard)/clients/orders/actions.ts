@@ -69,10 +69,15 @@ export type LineStatusOption = { id: string; code: string; description: string }
 
 /** Genera il codice 6 cifre OdA usando la sequenza Postgres */
 async function generatePurchaseOrderCode(): Promise<string> {
-  const rows = await db.execute<{ code: string }>(
+  const result = await db.execute<{ code: string }>(
     sql`SELECT LPAD(nextval('purchase_orders_code_seq')::text, 6, '0') AS code`,
   )
-  return (rows as any)[0].code as string
+  // Drizzle può ritornare un array (neon-http) o un oggetto con `.rows` (neon-serverless)
+  const rows: Array<{ code: string }> = Array.isArray(result)
+    ? (result as any)
+    : ((result as any).rows ?? [])
+  if (!rows.length || !rows[0].code) throw new Error('Errore generazione codice OdA')
+  return rows[0].code
 }
 
 /** Calcola il prossimo codice posizione a 3 cifre per un'OdA */
