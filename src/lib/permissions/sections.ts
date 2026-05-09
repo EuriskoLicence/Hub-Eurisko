@@ -16,6 +16,10 @@ export const SECTIONS = {
   CLIENTS_VIEW:        'CLIENTS_VIEW',        // Visualizzazione clienti, progetti, commesse
   CLIENTS_MANAGE:      'CLIENTS_MANAGE',      // Creazione e modifica (con regole di ownership)
 
+  // ─── Ordini di Acquisto (OdA) ───────────────────────────────────────────────
+  PURCHASE_ORDERS_VIEW:    'PURCHASE_ORDERS_VIEW',    // Visualizzazione OdA e posizioni
+  PURCHASE_ORDERS_MANAGE:  'PURCHASE_ORDERS_MANAGE',  // Creazione/modifica OdA. Abilita anche a essere selezionato come responsabile OdA
+
   // ─── HR Finance ─────────────────────────────────────────────────────────────
   FINANCE_DASHBOARD:   'FINANCE_DASHBOARD',   // Dashboard riepilogativa
   FINANCE_AMENDMENT:   'FINANCE_AMENDMENT',   // Gestione rettifiche (approva/rifiuta)
@@ -26,8 +30,10 @@ export const SECTIONS = {
   PARAM_ROLES:         'PARAM_ROLES',         // Creazione e gestione profili e ruoli
   PARAM_ABSENCES:      'PARAM_ABSENCES',      // Gestione voci di assenza
   PARAM_EXPENSE_CAT:   'PARAM_EXPENSE_CAT',   // Gestione categorie nota spese e tipi veicolo
-  PARAM_ENGAGEMENTS:   'PARAM_ENGAGEMENTS',   // Gestione tipologie commessa
-  PARAM_HOLIDAYS:      'PARAM_HOLIDAYS',      // Gestione festività italiane
+  PARAM_ENGAGEMENTS:           'PARAM_ENGAGEMENTS',           // Gestione tipologie commessa
+  PARAM_ENGAGEMENT_STATUSES:   'PARAM_ENGAGEMENT_STATUSES',   // Gestione stati commessa
+  PARAM_PO_LINE_STATUSES:      'PARAM_PO_LINE_STATUSES',      // Gestione stati posizione OdA
+  PARAM_HOLIDAYS:              'PARAM_HOLIDAYS',              // Gestione festività italiane
 } as const
 
 export type SectionCode = keyof typeof SECTIONS
@@ -39,8 +45,10 @@ export const SECTIONS_META: Record<SectionCode, { label: string; description: st
   TIMESHEET_EXTRA:     { label: 'Consuntivazione extra',     description: 'Consuntivazione ore extra (profilo Dipendente Plus)',                  sortOrder:  3, area: 'Consuntivazione' },
   EXPENSES:            { label: 'Nota spese',                description: 'Inserimento proprie note spese',                                       sortOrder:  3, area: 'Nota spese' },
   EXPENSES_AMENDMENT:  { label: 'Rettifica nota spese',      description: 'Richiesta rettifica proprie note spese',                              sortOrder:  4, area: 'Nota spese' },
-  CLIENTS_VIEW:        { label: 'Visualizzazione clienti',   description: 'Visualizzazione clienti, progetti e commesse',                         sortOrder:  5, area: 'Clienti' },
-  CLIENTS_MANAGE:      { label: 'Gestione clienti',          description: 'Creazione e modifica clienti, progetti e commesse (con ownership)',     sortOrder:  6, area: 'Clienti' },
+  CLIENTS_VIEW:           { label: 'Visualizzazione clienti',   description: 'Visualizzazione clienti, progetti e commesse',                                                              sortOrder:  5, area: 'Clienti' },
+  CLIENTS_MANAGE:         { label: 'Gestione clienti',          description: 'Creazione e modifica clienti, progetti e commesse (con ownership)',                                          sortOrder:  6, area: 'Clienti' },
+  PURCHASE_ORDERS_VIEW:   { label: 'Visualizzazione OdA',       description: 'Visualizzazione ordini di acquisto e posizioni',                                                              sortOrder:  6.5, area: 'Clienti' },
+  PURCHASE_ORDERS_MANAGE: { label: 'Gestione OdA',              description: 'Creazione e modifica ordini di acquisto. Abilita anche a essere selezionato come responsabile OdA.',         sortOrder:  6.6, area: 'Clienti' },
   FINANCE_DASHBOARD:   { label: 'Dashboard HR Finance',      description: 'Dashboard riepilogativa consuntivazioni e note spese',                  sortOrder:  7, area: 'HR Finance' },
   FINANCE_AMENDMENT:   { label: 'Gestione rettifiche',       description: 'Approvazione e rifiuto richieste di rettifica',                        sortOrder:  8, area: 'HR Finance' },
   FINANCE_EXPORT:      { label: 'Esportazione dati',         description: 'Esportazione dati consuntivazioni e note spese in CSV/Excel',          sortOrder:  9, area: 'HR Finance' },
@@ -48,6 +56,8 @@ export const SECTIONS_META: Record<SectionCode, { label: string; description: st
   PARAM_ROLES:         { label: 'Gestione ruoli e profili',  description: 'Creazione e gestione profili e ruoli di autorizzazione',               sortOrder: 11, area: 'Parametrizzazioni' },
   PARAM_ABSENCES:      { label: 'Voci di assenza',           description: 'Gestione voci di assenza (ferie, malattia, permesso, ecc.)',           sortOrder: 12, area: 'Parametrizzazioni' },
   PARAM_EXPENSE_CAT:   { label: 'Categorie spese',           description: 'Gestione categorie nota spese e tipi veicolo',                         sortOrder: 13, area: 'Parametrizzazioni' },
-  PARAM_ENGAGEMENTS:   { label: 'Tipologie commessa',        description: 'Gestione tipologie commessa (chiavi in mano, T&M, ecc.)',              sortOrder: 14, area: 'Parametrizzazioni' },
-  PARAM_HOLIDAYS:      { label: 'Festività',                 description: 'Gestione festività italiane e aziendali',                               sortOrder: 15, area: 'Parametrizzazioni' },
+  PARAM_ENGAGEMENTS:         { label: 'Tipologie commessa',        description: 'Gestione tipologie commessa (chiavi in mano, T&M, ecc.)',              sortOrder: 14, area: 'Parametrizzazioni' },
+  PARAM_ENGAGEMENT_STATUSES: { label: 'Stati commessa',            description: 'Gestione tabella stati commessa (codice + descrizione)',                sortOrder: 14.5, area: 'Parametrizzazioni' },
+  PARAM_PO_LINE_STATUSES:    { label: 'Stati posizione OdA',       description: 'Gestione tabella stati posizione OdA (codice + descrizione)',           sortOrder: 14.6, area: 'Parametrizzazioni' },
+  PARAM_HOLIDAYS:            { label: 'Festività',                 description: 'Gestione festività italiane e aziendali',                                sortOrder: 15, area: 'Parametrizzazioni' },
 }

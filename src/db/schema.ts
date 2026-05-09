@@ -140,6 +140,17 @@ export const engagementTypes = pgTable('engagement_types', {
   name:        text('name').notNull().unique(), // es. "Chiavi in mano"
   description: text('description'),
   active:      boolean('active').notNull().default(true),
+  noOda:       boolean('no_oda').notNull().default(false),  // se true, le commesse di questo tipo non vanno in OdA
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:   timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Stati commessa (parametrico, gestito da admin)
+export const engagementStatuses = pgTable('engagement_statuses', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  code:        text('code').notNull().unique(),         // 3 caratteri alfanumerici
+  description: text('description').notNull(),
+  active:      boolean('active').notNull().default(true),
   createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:   timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -153,6 +164,8 @@ export const engagements = pgTable('engagements', {
   notes:            text('notes'),
   totalHours:       integer('total_hours').notNull().default(999999),
   validUntil:       date('valid_until').notNull().default('2999-12-31'),
+  conclusa:         boolean('conclusa').notNull().default(false),
+  statusId:         uuid('status_id').references(() => engagementStatuses.id), // facoltativo
   createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:        timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -313,6 +326,57 @@ export const expenseLines = pgTable('expense_lines', {
   createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// ─── Ordini di Acquisto (OdA) ────────────────────────────────────────────────
+
+// Stati posizione OdA (parametrico, gestito da admin)
+export const purchaseOrderLineStatuses = pgTable('purchase_order_line_statuses', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  code:        text('code').notNull().unique(),         // 3 caratteri alfanumerici
+  description: text('description').notNull(),
+  active:      boolean('active').notNull().default(true),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:   timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Testata OdA
+export const purchaseOrders = pgTable('purchase_orders', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  code:               text('code').notNull().unique(),     // 6 cifre globali progressivi
+  date:               date('date').notNull(),
+  number:             text('number').notNull(),            // numero esterno (cliente)
+  clientId:           uuid('client_id').notNull().references(() => clients.id),
+  totalAmount:        numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
+  responsibleUserId:  uuid('responsible_user_id').notNull().references(() => users.id),
+  notes:              text('notes'),
+  needsReview:        boolean('needs_review').notNull().default(false), // flag "da rivedere"
+  createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:          timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Allegati OdA (1+ obbligatori)
+export const purchaseOrderAttachments = pgTable('purchase_order_attachments', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  purchaseOrderId:    uuid('purchase_order_id').notNull().references(() => purchaseOrders.id, { onDelete: 'cascade' }),
+  attachmentKey:      text('attachment_key').notNull(),
+  attachmentFilename: text('attachment_filename').notNull(),
+  uploadedAt:         timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Posizioni OdA
+export const purchaseOrderLines = pgTable('purchase_order_lines', {
+  id:                uuid('id').primaryKey().defaultRandom(),
+  purchaseOrderId:   uuid('purchase_order_id').notNull().references(() => purchaseOrders.id, { onDelete: 'cascade' }),
+  code:              text('code').notNull(),               // 3 cifre progressive per OdA
+  externalReference: text('external_reference'),           // riferimento posizione OdA (esterno)
+  description:       text('description').notNull(),
+  amount:            numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  engagementId:      uuid('engagement_id').notNull().references(() => engagements.id),
+  statusId:          uuid('status_id').references(() => purchaseOrderLineStatuses.id), // facoltativo
+  createdAt:         timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqOdaCode: unique().on(t.purchaseOrderId, t.code),
+}))
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 
 export const sectionsRelations = relations(sections, ({ many }) => ({
@@ -365,9 +429,36 @@ export const engagementTypesRelations = relations(engagementTypes, ({ many }) =>
 export const engagementsRelations = relations(engagements, ({ one, many }) => ({
   project:        one(projects,       { fields: [engagements.projectId],        references: [projects.id] }),
   engagementType: one(engagementTypes, { fields: [engagements.engagementTypeId], references: [engagementTypes.id] }),
+  status:          one(engagementStatuses, { fields: [engagements.statusId], references: [engagementStatuses.id] }),
   engagementUsers: many(engagementUsers),
   timesheetEntries: many(timesheetEntries),
   expenseLines:    many(expenseLines),
+  purchaseOrderLines: many(purchaseOrderLines),
+}))
+
+export const engagementStatusesRelations = relations(engagementStatuses, ({ many }) => ({
+  engagements: many(engagements),
+}))
+
+export const purchaseOrderLineStatusesRelations = relations(purchaseOrderLineStatuses, ({ many }) => ({
+  purchaseOrderLines: many(purchaseOrderLines),
+}))
+
+export const purchaseOrdersRelations = relations(purchaseOrders, ({ one, many }) => ({
+  client:       one(clients, { fields: [purchaseOrders.clientId],          references: [clients.id] }),
+  responsible:  one(users,   { fields: [purchaseOrders.responsibleUserId], references: [users.id] }),
+  attachments:  many(purchaseOrderAttachments),
+  lines:        many(purchaseOrderLines),
+}))
+
+export const purchaseOrderAttachmentsRelations = relations(purchaseOrderAttachments, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders, { fields: [purchaseOrderAttachments.purchaseOrderId], references: [purchaseOrders.id] }),
+}))
+
+export const purchaseOrderLinesRelations = relations(purchaseOrderLines, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders,             { fields: [purchaseOrderLines.purchaseOrderId], references: [purchaseOrders.id] }),
+  engagement:    one(engagements,                { fields: [purchaseOrderLines.engagementId],    references: [engagements.id] }),
+  status:        one(purchaseOrderLineStatuses,  { fields: [purchaseOrderLines.statusId],        references: [purchaseOrderLineStatuses.id] }),
 }))
 
 export const engagementUsersRelations = relations(engagementUsers, ({ one }) => ({

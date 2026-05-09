@@ -8,7 +8,7 @@ import {
   Clock, Receipt, BarChart2, Building2, FolderOpen,
   LayoutDashboard, AlertCircle,
   Users, Shield, CalendarOff, Tag, Briefcase, CalendarDays,
-  ChevronDown, Menu, X, Timer, CheckSquare,
+  ChevronDown, Menu, X, Timer, CheckSquare, ShoppingCart, ListChecks, Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SectionCode } from '@/lib/permissions/sections'
@@ -57,7 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label:      'Clienti',
-    anySection: ['CLIENTS_VIEW', 'CLIENTS_MANAGE'],
+    anySection: ['CLIENTS_VIEW', 'CLIENTS_MANAGE', 'PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_MANAGE'],
     items: [
       {
         label:      'Report',
@@ -76,6 +76,12 @@ const NAV_GROUPS: NavGroup[] = [
         href:       '/clients/projects',
         icon:       FolderOpen,
         anySection: ['CLIENTS_VIEW', 'CLIENTS_MANAGE'],
+      },
+      {
+        label:      'Ordini di Acquisto',
+        href:       '/clients/orders',
+        icon:       ShoppingCart,
+        anySection: ['PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_MANAGE'],
       },
     ],
   },
@@ -105,7 +111,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label:      'Parametrizzazioni',
-    anySection: ['PARAM_USERS', 'PARAM_ROLES', 'PARAM_ABSENCES', 'PARAM_EXPENSE_CAT', 'PARAM_ENGAGEMENTS', 'PARAM_HOLIDAYS'],
+    anySection: ['PARAM_USERS', 'PARAM_ROLES', 'PARAM_ABSENCES', 'PARAM_EXPENSE_CAT', 'PARAM_ENGAGEMENTS', 'PARAM_ENGAGEMENT_STATUSES', 'PARAM_PO_LINE_STATUSES', 'PARAM_HOLIDAYS'],
     items: [
       {
         label:   'Utenti',
@@ -136,6 +142,18 @@ const NAV_GROUPS: NavGroup[] = [
         href:    '/admin/engagement-types',
         icon:    Briefcase,
         section: 'PARAM_ENGAGEMENTS',
+      },
+      {
+        label:   'Stati commessa',
+        href:    '/admin/engagement-statuses',
+        icon:    Activity,
+        section: 'PARAM_ENGAGEMENT_STATUSES',
+      },
+      {
+        label:   'Stati posizione OdA',
+        href:    '/admin/po-line-statuses',
+        icon:    ListChecks,
+        section: 'PARAM_PO_LINE_STATUSES',
       },
       {
         label:   'Festività',
