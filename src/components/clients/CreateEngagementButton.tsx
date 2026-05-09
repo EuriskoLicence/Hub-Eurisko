@@ -4,14 +4,15 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, X } from 'lucide-react'
 import { createEngagement, getNextEngagementCode } from '@/app/(dashboard)/clients/actions'
-import type { EngagementTypeOption } from '@/app/(dashboard)/clients/actions'
+import type { EngagementTypeOption, EngagementStatusOption } from '@/app/(dashboard)/clients/actions'
 
 type Props = {
-  projectId:       string
-  engagementTypes: EngagementTypeOption[]
+  projectId:          string
+  engagementTypes:    EngagementTypeOption[]
+  engagementStatuses: EngagementStatusOption[]
 }
 
-export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
+export function CreateEngagementButton({ projectId, engagementTypes, engagementStatuses }: Props) {
   const router = useRouter()
   const [open,            setOpen]            = useState(false)
   const [name,            setName]            = useState('')
@@ -19,6 +20,7 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
   const [engTypeId,       setEngTypeId]       = useState(engagementTypes[0]?.id ?? '')
   const [totalHours,      setTotalHours]      = useState('999999')
   const [validUntil,      setValidUntil]      = useState('2999-12-31')
+  const [statusId,        setStatusId]        = useState<string>('')
   const [error,           setError]           = useState('')
   const [isPending,       startTransition]    = useTransition()
   const [isLoadingCode,   startLoadCode]      = useTransition()
@@ -42,6 +44,7 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
         engagementTypeId: engTypeId,
         totalHours: parseInt(totalHours) || 999999,
         validUntil: validUntil || '2999-12-31',
+        statusId:   statusId || null,
       })
       if (res.ok) {
         setOpen(false)
@@ -61,6 +64,7 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
     setEngTypeId(engagementTypes[0]?.id ?? '')
     setTotalHours('999999')
     setValidUntil('2999-12-31')
+    setStatusId('')
   }
 
   return (
@@ -172,6 +176,25 @@ export function CreateEngagementButton({ projectId, engagementTypes }: Props) {
                              disabled:opacity-50"
                 />
                 <p className="text-xs text-gray-400 mt-1">Default 31/12/2999 (nessuna scadenza).</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Stato <span className="text-gray-400 font-normal">(facoltativo)</span>
+                </label>
+                <select
+                  value={statusId}
+                  onChange={(e) => setStatusId(e.target.value)}
+                  disabled={isPending}
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base md:text-sm
+                             focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent
+                             disabled:opacity-50"
+                >
+                  <option value="">— Nessuno —</option>
+                  {engagementStatuses.map((s) => (
+                    <option key={s.id} value={s.id}>{s.code} — {s.description}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex gap-3">

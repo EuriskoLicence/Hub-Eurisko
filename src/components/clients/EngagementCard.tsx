@@ -2,26 +2,29 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Users, UserPlus, UserMinus, Pencil, ChevronDown, X, Clock, CalendarX2 } from 'lucide-react'
+import { Tag, Users, UserPlus, UserMinus, Pencil, ChevronDown, X, Clock, CalendarX2, CheckCircle2, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { updateEngagement, assignUserToEngagement, removeUserFromEngagement } from '@/app/(dashboard)/clients/actions'
-import type { EngagementDetail, UserOption } from '@/app/(dashboard)/clients/actions'
+import type { EngagementDetail, UserOption, EngagementStatusOption } from '@/app/(dashboard)/clients/actions'
 
 type Props = {
-  engagement:  EngagementDetail
-  projectId:   string
-  clientId:    string
-  canManage:   boolean
-  userOptions: UserOption[]
+  engagement:         EngagementDetail
+  projectId:          string
+  clientId:           string
+  canManage:          boolean
+  userOptions:        UserOption[]
+  engagementStatuses: EngagementStatusOption[]
 }
 
-export function EngagementCard({ engagement, projectId, clientId, canManage, userOptions }: Props) {
+export function EngagementCard({ engagement, projectId, clientId, canManage, userOptions, engagementStatuses }: Props) {
   const router = useRouter()
   const [expanded,    setExpanded]    = useState(false)
   const [editOpen,    setEditOpen]    = useState(false)
   const [name,        setName]        = useState(engagement.name)
   const [totalHours,  setTotalHours]  = useState(String(engagement.totalHours))
   const [validUntil,  setValidUntil]  = useState(engagement.validUntil)
+  const [conclusa,    setConclusa]    = useState(engagement.conclusa)
+  const [statusId,    setStatusId]    = useState<string>(engagement.statusId ?? '')
   const [error,       setError]       = useState('')
   const [isPending,   startTransition] = useTransition()
   const [addUserId,   setAddUserId]   = useState('')
@@ -35,6 +38,8 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
         name,
         totalHours: parseInt(totalHours) || 999999,
         validUntil: validUntil || '2999-12-31',
+        conclusa,
+        statusId: statusId || null,
       })
       if (res.ok) { setEditOpen(false); router.refresh() }
       else setError(res.error)
@@ -109,6 +114,19 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
             )}
           </div>
         </div>
+        {engagement.statusCode && (
+          <span
+            className="text-xs font-mono text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5 shrink-0"
+            title={engagement.statusDescription ?? undefined}
+          >
+            {engagement.statusCode}
+          </span>
+        )}
+        {engagement.conclusa && (
+          <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-2 py-0.5 shrink-0">
+            Conclusa
+          </span>
+        )}
         {!engagement.active && (
           <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5 shrink-0">Inattiva</span>
         )}
@@ -237,10 +255,48 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
                     />
                     <p className="text-xs text-gray-400 mt-1">Default 31/12/2999 (nessuna scadenza).</p>
                   </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Stato <span className="text-gray-400 font-normal">(facoltativo)</span>
+                    </label>
+                    <select
+                      value={statusId}
+                      onChange={(e) => setStatusId(e.target.value)}
+                      disabled={isPending}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-base md:text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+                    >
+                      <option value="">— Nessuno —</option>
+                      {engagementStatuses.map((s) => (
+                        <option key={s.id} value={s.id}>{s.code} — {s.description}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id={`eng-conclusa-${engagement.id}`}
+                      type="checkbox"
+                      checked={conclusa}
+                      onChange={(e) => setConclusa(e.target.checked)}
+                      disabled={isPending}
+                      className="h-4 w-4 rounded border-gray-300 text-emerald-500"
+                    />
+                    <label htmlFor={`eng-conclusa-${engagement.id}`} className="text-sm text-gray-700">
+                      Conclusa
+                    </label>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => { setEditOpen(false); setName(engagement.name); setTotalHours(String(engagement.totalHours)); setValidUntil(engagement.validUntil); setError('') }}
+                      onClick={() => {
+                        setEditOpen(false)
+                        setName(engagement.name)
+                        setTotalHours(String(engagement.totalHours))
+                        setValidUntil(engagement.validUntil)
+                        setConclusa(engagement.conclusa)
+                        setStatusId(engagement.statusId ?? '')
+                        setError('')
+                      }}
                       disabled={isPending}
                       className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >

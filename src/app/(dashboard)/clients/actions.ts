@@ -6,7 +6,7 @@ import { auth } from '@/auth'
 import { db } from '@/db'
 import {
   clients, projects, engagements, engagementUsers,
-  engagementTypes, users, roles, roleProfiles, profileSections,
+  engagementTypes, engagementStatuses, users, roles, roleProfiles, profileSections,
 } from '@/db/schema'
 import { requireSection, hasSection, HttpError } from '@/lib/permissions/auth-helpers'
 import { z } from 'zod'
@@ -32,16 +32,22 @@ export type ProjectSummary = {
 }
 
 export type EngagementDetail = {
-  id:               string
-  name:             string
-  code:             string
-  active:           boolean  // derivato da validUntil >= oggi
-  totalHours:       number
-  validUntil:       string   // YYYY-MM-DD
-  engagementTypeId: string
+  id:                 string
+  name:               string
+  code:               string
+  active:             boolean  // derivato da validUntil >= oggi
+  totalHours:         number
+  validUntil:         string   // YYYY-MM-DD
+  engagementTypeId:   string
   engagementTypeName: string
-  assignedUsers:    { userId: string; fullName: string; email: string }[]
+  conclusa:           boolean
+  statusId:           string | null
+  statusCode:         string | null
+  statusDescription:  string | null
+  assignedUsers:      { userId: string; fullName: string; email: string }[]
 }
+
+export type EngagementStatusOption = { id: string; code: string; description: string }
 
 export type ClientDetail = {
   id:                  string
@@ -201,9 +207,14 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
       validUntil:         engagements.validUntil,
       engagementTypeId:   engagements.engagementTypeId,
       engTypeName:        engagementTypes.name,
+      conclusa:           engagements.conclusa,
+      statusId:           engagements.statusId,
+      statusCode:         engagementStatuses.code,
+      statusDescription:  engagementStatuses.description,
     })
     .from(engagements)
-    .innerJoin(engagementTypes, eq(engagementTypes.id, engagements.engagementTypeId))
+    .innerJoin(engagementTypes,    eq(engagementTypes.id,    engagements.engagementTypeId))
+    .leftJoin (engagementStatuses, eq(engagementStatuses.id, engagements.statusId))
     .where(eq(engagements.projectId, projectId))
     .orderBy(engagements.name)
 
@@ -252,9 +263,24 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
       validUntil:         e.validUntil,
       engagementTypeId:   e.engagementTypeId,
       engagementTypeName: e.engTypeName,
+      conclusa:           e.conclusa,
+      statusId:           e.statusId,
+      statusCode:         e.statusCode,
+      statusDescription:  e.statusDescription,
       assignedUsers:      assignedByEng.get(e.id) ?? [],
     })),
   }
+}
+
+export async function getEngagementStatusOptions(): Promise<EngagementStatusOption[]> {
+  const session = await auth()
+  requireSection(session, 'CLIENTS_VIEW')
+  const rows = await db
+    .select({ id: engagementStatuses.id, code: engagementStatuses.code, description: engagementStatuses.description })
+    .from(engagementStatuses)
+    .where(eq(engagementStatuses.active, true))
+    .orderBy(engagementStatuses.code)
+  return rows
 }
 
 export async function getEngagementTypeOptions(): Promise<EngagementTypeOption[]> {
@@ -537,6 +563,8 @@ const EngagementSchema = z.object({
   engagementTypeId: z.string().uuid('Tipologia obbligatoria.'),
   totalHours:       z.number().int().positive().optional(),
   validUntil:       z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  conclusa:         z.boolean().optional(),
+  statusId:         z.string().uuid().nullable().optional(),
 })
 
 async function checkEngagementOwnership(projectId: string, userId: string): Promise<{ clientId: string } | { error: string }> {
@@ -558,7 +586,10 @@ async function checkEngagementOwnership(projectId: string, userId: string): Prom
 
 export async function createEngagement(
   projectId: string,
-  data: { name: string; engagementTypeId: string; totalHours?: number; validUntil?: string },
+  data: {
+    name: string; engagementTypeId: string; totalHours?: number; validUntil?: string;
+    conclusa?: boolean; statusId?: string | null;
+  },
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -585,6 +616,8 @@ export async function createEngagement(
         engagementTypeId: parsed.data.engagementTypeId,
         totalHours:       parsed.data.totalHours ?? 999999,
         validUntil:       parsed.data.validUntil ?? '2999-12-31',
+        conclusa:         parsed.data.conclusa ?? false,
+        statusId:         parsed.data.statusId ?? null,
       })
       .returning({ id: engagements.id })
 
@@ -600,7 +633,10 @@ export async function createEngagement(
 
 export async function updateEngagement(
   id: string,
-  data: { name?: string; totalHours?: number; validUntil?: string },
+  data: {
+    name?: string; totalHours?: number; validUntil?: string;
+    conclusa?: boolean; statusId?: string | null;
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
@@ -624,6 +660,8 @@ export async function updateEngagement(
         ...(data.name && { name: data.name.trim() }),
         ...(data.totalHours !== undefined && { totalHours: data.totalHours }),
         ...(data.validUntil && { validUntil: data.validUntil }),
+        ...(data.conclusa !== undefined && { conclusa: data.conclusa }),
+        ...(data.statusId !== undefined && { statusId: data.statusId }),
       })
       .where(eq(engagements.id, id))
 

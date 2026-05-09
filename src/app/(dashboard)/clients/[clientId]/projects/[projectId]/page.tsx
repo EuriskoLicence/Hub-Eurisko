@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { getProjectDetail, getEngagementTypeOptions, getUserOptions, getTimesheetUserOptions } from '../../../actions'
+import { getProjectDetail, getEngagementTypeOptions, getEngagementStatusOptions, getUserOptions, getTimesheetUserOptions } from '../../../actions'
 import { FolderOpen, Users, Tag, Building2 } from 'lucide-react'
 import { ProjectActions } from '@/components/clients/ProjectActions'
 import { EngagementCard } from '@/components/clients/EngagementCard'
@@ -30,9 +30,9 @@ export default async function ProjectDetailPage({ params, searchParams }: Props)
   // Solo il responsabile del progetto può creare/modificare commesse
   const canManageEngs = canManage && project.responsibleUserId === userId
 
-  const [engTypes, userOptions, timesheetUserOptions] = canManage
-    ? await Promise.all([getEngagementTypeOptions(), getUserOptions(), getTimesheetUserOptions()])
-    : await Promise.all([getEngagementTypeOptions(), Promise.resolve([]), Promise.resolve([])])
+  const [engTypes, engStatuses, userOptions, timesheetUserOptions] = canManage
+    ? await Promise.all([getEngagementTypeOptions(), getEngagementStatusOptions(), getUserOptions(), getTimesheetUserOptions()])
+    : await Promise.all([getEngagementTypeOptions(), getEngagementStatusOptions(), Promise.resolve([]), Promise.resolve([])])
 
   const onlyActive   = searchParams.onlyActive === '1'
   const engagements  = onlyActive
@@ -94,7 +94,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Props)
           <div className="flex items-center gap-3">
             <ActiveOnlyToggle checked={onlyActive} label="Solo attive" />
             {canManageEngs && project.active && (
-              <CreateEngagementButton projectId={project.id} engagementTypes={engTypes} />
+              <CreateEngagementButton projectId={project.id} engagementTypes={engTypes} engagementStatuses={engStatuses} />
             )}
           </div>
         </div>
@@ -116,6 +116,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Props)
                 clientId={project.clientId}
                 canManage={canManageEngs}
                 userOptions={timesheetUserOptions}
+                engagementStatuses={engStatuses}
               />
             ))}
           </div>
