@@ -11,6 +11,11 @@ import {
 } from '@/db/schema'
 import { requireSection, hasSection, HttpError } from '@/lib/permissions/auth-helpers'
 import { deleteObject } from '@/lib/r2'
+import {
+  sendPurchaseOrderAssignedEmail,
+  sendPurchaseOrderTotalChangedEmail,
+  sendPurchaseOrderReminderEmail,
+} from '@/lib/email'
 import { z } from 'zod'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -383,6 +388,37 @@ export async function createPurchaseOrder(
       )
     }
 
+    // Invio email al responsabile (fire-and-forget)
+    const respRows = await db
+      .select({
+        firstName: users.firstName,
+        lastName:  users.lastName,
+        email:     users.email,
+      })
+      .from(users)
+      .innerJoin(clients, eq(clients.id, parsed.data.clientId))
+      .where(eq(users.id, parsed.data.responsibleUserId))
+      .limit(1)
+    const clientRows = await db
+      .select({ name: clients.name })
+      .from(clients)
+      .where(eq(clients.id, parsed.data.clientId))
+      .limit(1)
+
+    if (respRows.length && clientRows.length) {
+      const r = respRows[0]
+      sendPurchaseOrderAssignedEmail({
+        poId:        row.id,
+        userEmail:   r.email,
+        userName:    `${r.firstName} ${r.lastName}`,
+        poCode:      code,
+        poNumber:    parsed.data.number.trim(),
+        clientName:  clientRows[0].name,
+        totalAmount: parsed.data.totalAmount,
+        date:        parsed.data.date,
+      }).catch((e) => console.error('mail PO assigned error:', e))
+    }
+
     revalidatePath('/clients/orders')
     revalidatePath(`/clients/orders/${row.id}`)
     return { ok: true, id: row.id }
@@ -466,7 +502,73 @@ export async function updatePurchaseOrder(
 
     await db.update(purchaseOrders).set(set).where(eq(purchaseOrders.id, id))
 
-    // TODO Fase 5: invio email se cambia responsibleUserId o se needsReview passa a true
+    // ── Email: cambio responsabile → notifica al NUOVO ──
+    const responsibleChanged = parsed.data.responsibleUserId !== undefined &&
+                               parsed.data.responsibleUserId !== existing.responsibleUserId
+    if (responsibleChanged) {
+      const detailRows = await db
+        .select({
+          code:        purchaseOrders.code,
+          number:      purchaseOrders.number,
+          date:        purchaseOrders.date,
+          totalAmount: purchaseOrders.totalAmount,
+          clientName:  clients.name,
+          firstName:   users.firstName,
+          lastName:    users.lastName,
+          email:       users.email,
+        })
+        .from(purchaseOrders)
+        .innerJoin(clients, eq(clients.id, purchaseOrders.clientId))
+        .innerJoin(users,   eq(users.id,   purchaseOrders.responsibleUserId))
+        .where(eq(purchaseOrders.id, id))
+        .limit(1)
+      if (detailRows.length) {
+        const d = detailRows[0]
+        sendPurchaseOrderAssignedEmail({
+          poId:        id,
+          userEmail:   d.email,
+          userName:    `${d.firstName} ${d.lastName}`,
+          poCode:      d.code,
+          poNumber:    d.number,
+          clientName:  d.clientName,
+          totalAmount: d.totalAmount,
+          date:        d.date,
+        }).catch((e) => console.error('mail PO reassigned error:', e))
+      }
+    }
+
+    // ── Email: importo modificato con posizioni → notifica al responsabile ──
+    if (newNeedsReview === true) {
+      const detailRows = await db
+        .select({
+          code:        purchaseOrders.code,
+          number:      purchaseOrders.number,
+          totalAmount: purchaseOrders.totalAmount,
+          clientName:  clients.name,
+          firstName:   users.firstName,
+          lastName:    users.lastName,
+          email:       users.email,
+        })
+        .from(purchaseOrders)
+        .innerJoin(clients, eq(clients.id, purchaseOrders.clientId))
+        .innerJoin(users,   eq(users.id,   purchaseOrders.responsibleUserId))
+        .where(eq(purchaseOrders.id, id))
+        .limit(1)
+      if (detailRows.length) {
+        const d = detailRows[0]
+        sendPurchaseOrderTotalChangedEmail({
+          poId:            id,
+          userEmail:       d.email,
+          userName:        `${d.firstName} ${d.lastName}`,
+          poCode:          d.code,
+          poNumber:        d.number,
+          clientName:      d.clientName,
+          oldAmount:       existing.totalAmount,
+          newAmount:       d.totalAmount,
+          currentLinesSum: positionsSum,
+        }).catch((e) => console.error('mail PO total-changed error:', e))
+      }
+    }
 
     revalidatePath('/clients/orders')
     revalidatePath(`/clients/orders/${id}`)
@@ -726,6 +828,129 @@ export async function savePurchaseOrderLines(
   } catch (err) {
     if (err instanceof HttpError) return { ok: false, error: err.message }
     console.error('savePurchaseOrderLines error:', err)
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+// ─── SOLLECITO ────────────────────────────────────────────────────────────────
+
+export type ResponsibleWithOpenOrders = {
+  responsibleId:    string
+  responsibleName:  string
+  responsibleEmail: string
+  ordersCount:      number
+}
+
+/** Restituisce i responsabili che hanno almeno un'OdA senza posizioni, con il conteggio. */
+export async function getResponsiblesWithOpenOrders(): Promise<ResponsibleWithOpenOrders[]> {
+  const session = await auth()
+  requireSection(session, 'PURCHASE_ORDERS_VIEW')
+
+  const rows = await db
+    .select({
+      responsibleId: purchaseOrders.responsibleUserId,
+      firstName:     users.firstName,
+      lastName:      users.lastName,
+      email:         users.email,
+      poId:          purchaseOrders.id,
+      hasLines:      sql<number>`(select count(*) from ${purchaseOrderLines} where ${purchaseOrderLines.purchaseOrderId} = ${purchaseOrders.id})`,
+    })
+    .from(purchaseOrders)
+    .innerJoin(users, eq(users.id, purchaseOrders.responsibleUserId))
+
+  const map = new Map<string, ResponsibleWithOpenOrders>()
+  for (const r of rows) {
+    if (Number(r.hasLines) > 0) continue
+    if (!map.has(r.responsibleId)) {
+      map.set(r.responsibleId, {
+        responsibleId:    r.responsibleId,
+        responsibleName:  `${r.lastName} ${r.firstName}`,
+        responsibleEmail: r.email,
+        ordersCount:      0,
+      })
+    }
+    map.get(r.responsibleId)!.ordersCount += 1
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.responsibleName.localeCompare(b.responsibleName))
+}
+
+/** Invia email di sollecito ai responsabili indicati con l'elenco delle loro OdA pendenti. */
+export async function sendPurchaseOrderReminders(
+  responsibleIds: string[],
+): Promise<{ ok: true; sent: number } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'PURCHASE_ORDERS_MANAGE')
+
+    if (!Array.isArray(responsibleIds) || responsibleIds.length === 0) {
+      return { ok: false, error: 'Nessun responsabile selezionato.' }
+    }
+
+    // Recupera tutte le OdA dei responsabili indicati
+    const rows = await db
+      .select({
+        poId:          purchaseOrders.id,
+        code:          purchaseOrders.code,
+        number:        purchaseOrders.number,
+        date:          purchaseOrders.date,
+        totalAmount:   purchaseOrders.totalAmount,
+        clientName:    clients.name,
+        responsibleId: purchaseOrders.responsibleUserId,
+        respFirst:     users.firstName,
+        respLast:      users.lastName,
+        respEmail:     users.email,
+        linesCount:    sql<number>`(select count(*) from ${purchaseOrderLines} where ${purchaseOrderLines.purchaseOrderId} = ${purchaseOrders.id})`,
+      })
+      .from(purchaseOrders)
+      .innerJoin(clients, eq(clients.id, purchaseOrders.clientId))
+      .innerJoin(users,   eq(users.id,   purchaseOrders.responsibleUserId))
+      .where(inArray(purchaseOrders.responsibleUserId, responsibleIds))
+      .orderBy(asc(purchaseOrders.date))
+
+    type Pending = { id: string; code: string; number: string; clientName: string; totalAmount: string; date: string }
+    type Group   = { email: string; name: string; orders: Pending[] }
+    const grouped = new Map<string, Group>()
+
+    for (const r of rows) {
+      if (Number(r.linesCount) > 0) continue
+      if (!grouped.has(r.responsibleId)) {
+        grouped.set(r.responsibleId, {
+          email:  r.respEmail,
+          name:   `${r.respFirst} ${r.respLast}`,
+          orders: [],
+        })
+      }
+      grouped.get(r.responsibleId)!.orders.push({
+        id:          r.poId,
+        code:        r.code,
+        number:      r.number,
+        clientName:  r.clientName,
+        totalAmount: r.totalAmount,
+        date:        r.date,
+      })
+    }
+
+    let sent = 0
+    for (const g of Array.from(grouped.values())) {
+      if (g.orders.length === 0) continue
+      // Fire-and-forget: aspettiamo solo per contare i tentativi
+      try {
+        await sendPurchaseOrderReminderEmail({
+          userEmail:     g.email,
+          userName:      g.name,
+          pendingOrders: g.orders,
+        })
+        sent += 1
+      } catch (e) {
+        console.error('reminder email failed for', g.email, e)
+      }
+    }
+
+    return { ok: true, sent }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    console.error('sendPurchaseOrderReminders error:', err)
     return { ok: false, error: 'Errore del server.' }
   }
 }

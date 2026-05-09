@@ -263,3 +263,149 @@ export async function sendPasswordResetEmail(params: {
     html:    layout('Password reimpostata', body),
   }).catch((err) => console.error('sendPasswordResetEmail error:', err))
 }
+
+// ─── OdA: Helpers ─────────────────────────────────────────────────────────────
+
+function fmtEur(amount: number | string) {
+  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(Number(amount))
+}
+
+// ─── OdA: Assegnazione responsabile ────────────────────────────────────────────
+
+export async function sendPurchaseOrderAssignedEmail(params: {
+  poId:        string
+  userEmail:   string
+  userName:    string
+  poCode:      string
+  poNumber:    string
+  clientName:  string
+  totalAmount: string | number
+  date:        string
+}) {
+  const body = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      Gentile <strong>${params.userName}</strong>,
+    </p>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      ti è stato assegnato un nuovo Ordine di Acquisto. Ti chiediamo cortesemente di
+      compilare le posizioni quando sarai disponibile.
+    </p>
+    <div style="margin:0 0 24px;padding:20px 24px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
+      ${table(
+        info('Codice OdA',     params.poCode),
+        info('Numero cliente', params.poNumber),
+        info('Cliente',        params.clientName),
+        info('Data',           new Date(params.date + 'T00:00:00').toLocaleDateString('it-IT')),
+        info('Importo totale', fmtEur(params.totalAmount)),
+      )}
+    </div>
+    ${btn('Apri OdA', `${APP_URL}/clients/orders/${params.poId}`)}
+  `
+  await getResend().emails.send({
+    from:    FROM,
+    to:      params.userEmail,
+    subject: `[${APP_NAME}] Nuovo OdA assegnato: ${params.poCode}`,
+    html:    layout('Nuovo Ordine di Acquisto assegnato', body),
+  }).catch((err) => console.error('sendPurchaseOrderAssignedEmail error:', err))
+}
+
+// ─── OdA: Modifica importo totale ─────────────────────────────────────────────
+
+export async function sendPurchaseOrderTotalChangedEmail(params: {
+  poId:            string
+  userEmail:       string
+  userName:        string
+  poCode:          string
+  poNumber:        string
+  clientName:      string
+  oldAmount:       string | number
+  newAmount:       string | number
+  currentLinesSum: string | number
+}) {
+  const diff = Number(params.newAmount) - Number(params.currentLinesSum)
+  const diffStr = (diff > 0 ? '+' : '') + fmtEur(diff)
+
+  const body = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      Gentile <strong>${params.userName}</strong>,
+    </p>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      l'importo totale dell'Ordine di Acquisto <strong>${params.poCode}</strong> è stato modificato.
+      La somma delle posizioni esistenti non corrisponde più al nuovo totale: l'OdA è stato marcato come
+      <strong>«da rivedere»</strong>.
+    </p>
+    <div style="margin:0 0 24px;padding:20px 24px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
+      ${table(
+        info('Codice OdA',          params.poCode),
+        info('Numero cliente',      params.poNumber),
+        info('Cliente',             params.clientName),
+        info('Importo precedente',  fmtEur(params.oldAmount)),
+        info('Nuovo importo',       fmtEur(params.newAmount)),
+        info('Somma posizioni',     fmtEur(params.currentLinesSum)),
+        info('Differenza',          diffStr),
+      )}
+    </div>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      Aggiorna le posizioni per quadrare il nuovo totale: il flag &laquo;da rivedere&raquo; verrà rimosso automaticamente.
+    </p>
+    ${btn('Verifica posizioni', `${APP_URL}/clients/orders/${params.poId}`)}
+  `
+  await getResend().emails.send({
+    from:    FROM,
+    to:      params.userEmail,
+    subject: `⚠️ Importo OdA modificato: ${params.poCode} — verifica le posizioni`,
+    html:    layout('Importo OdA modificato', body),
+  }).catch((err) => console.error('sendPurchaseOrderTotalChangedEmail error:', err))
+}
+
+// ─── OdA: Sollecito posizioni mancanti ────────────────────────────────────────
+
+export async function sendPurchaseOrderReminderEmail(params: {
+  userEmail:     string
+  userName:      string
+  pendingOrders: { id: string; code: string; number: string; clientName: string; totalAmount: string | number; date: string }[]
+}) {
+  const n = params.pendingOrders.length
+  if (n === 0) return
+
+  const rows = params.pendingOrders.map((o) => `
+    <tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-family:monospace;font-size:13px;color:#1e293b;">${o.code}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#475569;">${o.number}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#475569;">${o.clientName}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#475569;">${new Date(o.date + 'T00:00:00').toLocaleDateString('it-IT')}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#1e293b;text-align:right;">${fmtEur(o.totalAmount)}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;text-align:right;"><a href="${APP_URL}/clients/orders/${o.id}" style="color:#2563eb;text-decoration:none;font-weight:500;">Apri</a></td>
+    </tr>
+  `).join('')
+
+  const body = `
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      Gentile <strong>${params.userName}</strong>,
+    </p>
+    <p style="margin:0 0 16px;font-size:15px;color:#334155;">
+      hai <strong>${n}</strong> ${n === 1 ? 'Ordine di Acquisto' : 'Ordini di Acquisto'} a te assegnat${n === 1 ? 'o' : 'i'}
+      ancora privi di posizioni. Ti chiediamo cortesemente di completarli quanto prima.
+    </p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0 24px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Codice</th>
+          <th style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">N° cliente</th>
+          <th style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Cliente</th>
+          <th style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Data</th>
+          <th style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:right;font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;">Importo</th>
+          <th style="padding:10px 12px;border-bottom:1px solid #e2e8f0;font-size:12px;"></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${btn('Apri Ordini di Acquisto', `${APP_URL}/clients/orders`)}
+  `
+  await getResend().emails.send({
+    from:    FROM,
+    to:      params.userEmail,
+    subject: `⏰ Sollecito: ${n} OdA in attesa di posizioni`,
+    html:    layout('Sollecito posizioni OdA', body),
+  }).catch((err) => console.error('sendPurchaseOrderReminderEmail error:', err))
+}

@@ -3,11 +3,12 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { ShoppingCart, Plus, ChevronRight, Building2, User, Euro, Calendar, AlertTriangle, Paperclip } from 'lucide-react'
-import { getPurchaseOrders, getResponsibleCandidates } from './actions'
+import { getPurchaseOrders, getResponsibleCandidates, getResponsiblesWithOpenOrders } from './actions'
 import { getClientList } from '../actions'
 import { ResponsibleFilter } from '@/components/ui/ResponsibleFilter'
 import { ClientFilterSelect } from '@/components/ui/ClientFilterSelect'
 import { OnlyOpenToggle } from '@/components/ui/OnlyOpenToggle'
+import { OdaReminderBanner } from '@/components/orders/OdaReminderBanner'
 
 export const metadata = { title: 'Ordini di Acquisto' }
 
@@ -19,7 +20,7 @@ export default async function PurchaseOrdersListPage({ searchParams }: Props) {
 
   const canManage = hasSection(session, 'PURCHASE_ORDERS_MANAGE')
 
-  const [orders, clientsList, responsibles] = await Promise.all([
+  const [orders, clientsList, responsibles, openByResp] = await Promise.all([
     getPurchaseOrders({
       clientId:      searchParams.clientId,
       responsibleId: searchParams.responsibleId,
@@ -27,9 +28,11 @@ export default async function PurchaseOrdersListPage({ searchParams }: Props) {
     }),
     getClientList(true),
     getResponsibleCandidates(),
+    getResponsiblesWithOpenOrders(),
   ])
 
-  const openCount = orders.filter((o) => !o.hasPositions).length
+  const openCount      = orders.filter((o) => !o.hasPositions).length
+  const totalOpenAcrossAll = openByResp.reduce((s, r) => s + r.ordersCount, 0)
 
   function fmtEur(s: string) {
     return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(Number(s))
@@ -61,6 +64,13 @@ export default async function PurchaseOrdersListPage({ searchParams }: Props) {
           </Link>
         )}
       </div>
+
+      {/* Banner sollecito */}
+      <OdaReminderBanner
+        pendingTotal={totalOpenAcrossAll}
+        responsibles={openByResp}
+        canSend={canManage}
+      />
 
       {/* Filtri */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-end gap-3">
