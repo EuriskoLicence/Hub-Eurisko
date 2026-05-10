@@ -14,24 +14,21 @@ export async function GET(req: NextRequest) {
   const userId           = searchParams.get('userId')        || null
   const engagementId     = searchParams.get('engagementId')  || null
   const responsibleId    = searchParams.get('responsibleId') || null
-  const statusId         = searchParams.get('statusId')      || null
   const conclusedFilter  = (
     ['all', 'open', 'closed'].includes(searchParams.get('conclusedFilter') ?? '')
       ? (searchParams.get('conclusedFilter') as ConclusedFilter)
       : 'all'
   ) as ConclusedFilter
 
-  const rows = await getCommessePerUtente({ userId, engagementId, responsibleId, conclusedFilter, statusId })
+  const rows = await getCommessePerUtente({ userId, engagementId, responsibleId, conclusedFilter })
 
-  const headers = ['Utente', 'Commessa', 'Cod. commessa', 'Conclusa', 'Stato (cod.)', 'Stato (descr.)', 'Responsabile commessa']
+  const headers = ['Utente', 'Commessa', 'Cod. commessa', 'Conclusa', 'Responsabile commessa']
 
   const dataRows: (string | number)[][] = rows.map((r) => [
     r.userName,
     r.engagementName,
     r.engagementCode,
     r.conclusa ? 'Sì' : 'No',
-    r.statusCode        ?? '',
-    r.statusDescription ?? '',
     r.responsibleName,
   ])
 
@@ -53,8 +50,6 @@ export async function GET(req: NextRequest) {
     { wch: 40 }, // Commessa
     { wch: 16 }, // Cod. commessa
     { wch: 10 }, // Conclusa
-    { wch: 12 }, // Stato (cod.)
-    { wch: 28 }, // Stato (descr.)
     { wch: 30 }, // Responsabile
   ]
 
