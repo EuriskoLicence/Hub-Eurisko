@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx-js-style'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { getCommessaList, type ActiveFilter } from '../actions'
+import { getCommessaList, type ConclusedFilter } from '../actions'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -11,11 +11,16 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = req.nextUrl
-  const clientId  = searchParams.get('clientId')  || null
-  const projectId = searchParams.get('projectId') || null
-  const activeOnly = (searchParams.get('activeOnly') ?? 'all') as ActiveFilter
+  const clientId        = searchParams.get('clientId')  || null
+  const projectId       = searchParams.get('projectId') || null
+  const statusId        = searchParams.get('statusId')  || null
+  const conclusedFilter = (
+    ['all', 'open', 'closed'].includes(searchParams.get('conclusedFilter') ?? '')
+      ? (searchParams.get('conclusedFilter') as ConclusedFilter)
+      : 'all'
+  ) as ConclusedFilter
 
-  const rows = await getCommessaList({ clientId, projectId, activeOnly })
+  const rows = await getCommessaList({ clientId, projectId, conclusedFilter, statusId })
 
   const headers = [
     'Cod. cliente',
@@ -25,7 +30,9 @@ export async function GET(req: NextRequest) {
     'Responsabile progetto',
     'Cod. commessa',
     'Commessa',
-    'Attiva',
+    'Conclusa',
+    'Stato (cod.)',
+    'Stato (descr.)',
     'Fine validità',
     'Ore budget',
     'Ore consuntivate',
@@ -40,7 +47,9 @@ export async function GET(req: NextRequest) {
     r.responsibleName,
     r.engagementCode,
     r.engagementName,
-    r.active ? 'Sì' : 'No',
+    r.conclusa ? 'Sì' : 'No',
+    r.statusCode        ?? '',
+    r.statusDescription ?? '',
     r.validUntil === '2999-12-31'
       ? '—'
       : new Date(r.validUntil + 'T00:00:00').toLocaleDateString('it-IT'),
@@ -62,16 +71,16 @@ export async function GET(req: NextRequest) {
     if (ws[cellRef]) ws[cellRef].s = headerStyle
   }
 
-  // Stile rosso per ore rimanenti negative e per date fine validità già scadute
+  // Stile rosso per ore rimanenti negative (col 13) e per date fine validità già scadute (col 10)
   rows.forEach((r, rowIdx) => {
     if (r.remainingHours !== null && r.remainingHours < 0) {
-      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 11 })
+      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 13 })
       if (ws[cellRef]) {
         ws[cellRef].s = { font: { color: { rgb: 'DC2626' }, bold: true } }
       }
     }
     if (r.validUntil !== '2999-12-31' && new Date(r.validUntil + 'T00:00:00') < new Date()) {
-      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 8 })
+      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 10 })
       if (ws[cellRef]) {
         ws[cellRef].s = { font: { color: { rgb: 'DC2626' }, bold: true } }
       }
@@ -86,7 +95,9 @@ export async function GET(req: NextRequest) {
     { wch: 28 }, // Responsabile
     { wch: 14 }, // Cod. commessa
     { wch: 35 }, // Commessa
-    { wch: 10 }, // Attiva
+    { wch: 10 }, // Conclusa
+    { wch: 12 }, // Stato (cod.)
+    { wch: 28 }, // Stato (descr.)
     { wch: 14 }, // Fine validità
     { wch: 12 }, // Ore budget
     { wch: 16 }, // Ore consuntivate
@@ -97,7 +108,9 @@ export async function GET(req: NextRequest) {
 
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
 
-  const suffix = activeOnly === 'active' ? '-attive' : activeOnly === 'inactive' ? '-inattive' : ''
+  const suffix = conclusedFilter === 'open'   ? '-non-concluse'
+              : conclusedFilter === 'closed'  ? '-concluse'
+              :                                 ''
   const filename = `lista-commesse${suffix}.xlsx`
 
   return new NextResponse(buffer, {

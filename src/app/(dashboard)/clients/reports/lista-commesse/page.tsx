@@ -1,17 +1,20 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { getCommessaList, getFilterClients, getFilterProjects, type ActiveFilter } from './actions'
-import { BarChart2, FileSpreadsheet, List } from 'lucide-react'
-import { CheckCircle2, XCircle } from 'lucide-react'
+import {
+  getCommessaList, getFilterClients, getFilterProjects, getFilterEngagementStatuses,
+  type ConclusedFilter,
+} from './actions'
+import { BarChart2, FileSpreadsheet, List, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export const metadata = { title: 'Report lista commesse' }
 
 type SP = {
-  clientId?:  string
-  projectId?: string
-  activeOnly?: string
+  clientId?:        string
+  projectId?:       string
+  conclusedFilter?: string
+  statusId?:        string
 }
 
 function HoursCell({ value }: { value: number | null }) {
@@ -35,20 +38,27 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
   const session = await auth()
   if (!session || !hasSection(session, 'CLIENTS_VIEW')) redirect('/dashboard')
 
-  const clientId  = searchParams.clientId  || null
-  const projectId = searchParams.projectId || null
-  const activeOnly = (searchParams.activeOnly ?? 'all') as ActiveFilter
+  const clientId         = searchParams.clientId  || null
+  const projectId        = searchParams.projectId || null
+  const statusId         = searchParams.statusId  || null
+  const conclusedFilter  = (
+    ['all', 'open', 'closed'].includes(searchParams.conclusedFilter ?? '')
+      ? (searchParams.conclusedFilter as ConclusedFilter)
+      : 'all'
+  ) as ConclusedFilter
 
-  const [rows, allClients, allProjects] = await Promise.all([
-    getCommessaList({ clientId, projectId, activeOnly }),
+  const [rows, allClients, allProjects, allStatuses] = await Promise.all([
+    getCommessaList({ clientId, projectId, conclusedFilter, statusId }),
     getFilterClients(),
     getFilterProjects(clientId),
+    getFilterEngagementStatuses(),
   ])
 
   const exportParams = new URLSearchParams()
-  if (clientId)             exportParams.set('clientId',  clientId)
-  if (projectId)            exportParams.set('projectId', projectId)
-  if (activeOnly !== 'all') exportParams.set('activeOnly', activeOnly)
+  if (clientId)                   exportParams.set('clientId',        clientId)
+  if (projectId)                  exportParams.set('projectId',       projectId)
+  if (conclusedFilter !== 'all')  exportParams.set('conclusedFilter', conclusedFilter)
+  if (statusId)                   exportParams.set('statusId',        statusId)
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -97,15 +107,29 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Stato commessa</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Conclusa</label>
             <select
-              name="activeOnly"
-              defaultValue={activeOnly}
-              className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              name="conclusedFilter"
+              defaultValue={conclusedFilter}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Tutte</option>
-              <option value="active">Solo attive</option>
-              <option value="inactive">Solo inattive</option>
+              <option value="open">Solo non concluse</option>
+              <option value="closed">Solo concluse</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Stato</label>
+            <select
+              name="statusId"
+              defaultValue={statusId ?? ''}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Tutti</option>
+              {allStatuses.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
             </select>
           </div>
 
@@ -160,7 +184,8 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap hidden xl:table-cell">Responsabile</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Cod. comm.</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Commessa</th>
-                <th className="text-center px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Attiva</th>
+                <th className="text-center px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Conclusa</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Stato</th>
                 <th className="text-center px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Scadenza</th>
                 <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Budget</th>
                 <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Consunt.</th>
@@ -178,9 +203,20 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
                   <td className="px-2 py-2.5 font-mono text-gray-500 whitespace-nowrap">{r.engagementCode}</td>
                   <td className="px-2 py-2.5 text-gray-700 max-w-[150px] truncate" title={r.engagementName}>{r.engagementName}</td>
                   <td className="px-2 py-2.5 text-center">
-                    {r.active
-                      ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 inline" />
-                      : <XCircle      className="h-3.5 w-3.5 text-gray-300 inline" />
+                    {r.conclusa
+                      ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 inline" />
+                      : <span className="text-gray-300 text-xs">—</span>
+                    }
+                  </td>
+                  <td className="px-2 py-2.5 whitespace-nowrap">
+                    {r.statusCode
+                      ? <span
+                          className="inline-block rounded bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-indigo-700"
+                          title={r.statusDescription ?? undefined}
+                        >
+                          {r.statusCode}
+                        </span>
+                      : <span className="text-gray-300 text-xs">—</span>
                     }
                   </td>
                   <td className="px-2 py-2.5 text-center tabular-nums whitespace-nowrap">

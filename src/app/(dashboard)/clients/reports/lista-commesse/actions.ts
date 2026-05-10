@@ -1,11 +1,12 @@
 'use server'
 
-import { and, asc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, sql } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
   clients,
   engagements,
+  engagementStatuses,
   projects,
   users,
   timesheetEntries,
@@ -21,27 +22,30 @@ const UNLIMITED_HOURS = 999999
 // ─── Tipi ────────────────────────────────────────────────────────────────────
 
 export type CommessaRow = {
-  engagementId:    string
-  clientCode:      string
-  clientName:      string
-  projectCode:     string
-  projectName:     string
-  responsibleName: string
-  engagementCode:  string
-  engagementName:  string
-  validUntil:      string         // YYYY-MM-DD
-  active:          boolean        // derivato: validUntil >= oggi
-  totalHours:      number | null  // null = nessun limite (999999 in DB)
-  workedHours:     number         // somma approvata da timesheet + extra
-  remainingHours:  number | null  // null se totalHours è null
+  engagementId:      string
+  clientCode:        string
+  clientName:        string
+  projectCode:       string
+  projectName:       string
+  responsibleName:   string
+  engagementCode:    string
+  engagementName:    string
+  validUntil:        string         // YYYY-MM-DD
+  conclusa:          boolean
+  statusCode:        string | null
+  statusDescription: string | null
+  totalHours:        number | null  // null = nessun limite (999999 in DB)
+  workedHours:       number         // somma approvata da timesheet + extra
+  remainingHours:    number | null  // null se totalHours è null
 }
 
-export type ActiveFilter = 'all' | 'active' | 'inactive'
+export type ConclusedFilter = 'all' | 'open' | 'closed'
 
 export type CommessaFilters = {
-  clientId:   string | null
-  projectId:  string | null
-  activeOnly: ActiveFilter
+  clientId:        string | null
+  projectId:       string | null
+  conclusedFilter: ConclusedFilter
+  statusId:        string | null
 }
 
 export type FilterOption = { id: string; label: string }
@@ -52,32 +56,37 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
   const session = await auth()
   requireSection(session, 'CLIENTS_VIEW')
 
-  const conditions: ReturnType<typeof eq>[] = []
-  if (filters.clientId)                conditions.push(eq(projects.clientId,   filters.clientId))
-  if (filters.projectId)               conditions.push(eq(engagements.projectId, filters.projectId))
-  if (filters.activeOnly === 'active')   conditions.push(gte(engagements.validUntil, sql`CURRENT_DATE`))
-  if (filters.activeOnly === 'inactive') conditions.push(lt(engagements.validUntil,  sql`CURRENT_DATE`))
+  const conditions: any[] = []
+  if (filters.clientId)                       conditions.push(eq(projects.clientId,    filters.clientId))
+  if (filters.projectId)                      conditions.push(eq(engagements.projectId, filters.projectId))
+  if (filters.conclusedFilter === 'open')     conditions.push(eq(engagements.conclusa,  false))
+  if (filters.conclusedFilter === 'closed')   conditions.push(eq(engagements.conclusa,  true))
+  if (filters.statusId)                       conditions.push(eq(engagements.statusId,  filters.statusId))
 
   // Query principale
   const [mainRows, tsHoursRows, extraHoursRows] = await Promise.all([
     db
       .select({
-        engagementId:     engagements.id,
-        clientCode:       clients.code,
-        clientName:       clients.name,
-        projectCode:      projects.code,
-        projectName:      projects.name,
-        responsibleLast:  users.lastName,
-        responsibleFirst: users.firstName,
-        engagementCode:   engagements.code,
-        engagementName:   engagements.name,
-        validUntil:       engagements.validUntil,
-        totalHours:       engagements.totalHours,
+        engagementId:      engagements.id,
+        clientCode:        clients.code,
+        clientName:        clients.name,
+        projectCode:       projects.code,
+        projectName:       projects.name,
+        responsibleLast:   users.lastName,
+        responsibleFirst:  users.firstName,
+        engagementCode:    engagements.code,
+        engagementName:    engagements.name,
+        validUntil:        engagements.validUntil,
+        totalHours:        engagements.totalHours,
+        conclusa:          engagements.conclusa,
+        statusCode:        engagementStatuses.code,
+        statusDescription: engagementStatuses.description,
       })
       .from(engagements)
       .innerJoin(projects, eq(engagements.projectId,        projects.id))
       .innerJoin(clients,  eq(projects.clientId,            clients.id))
       .innerJoin(users,    eq(projects.responsibleUserId,   users.id))
+      .leftJoin (engagementStatuses, eq(engagementStatuses.id, engagements.statusId))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(asc(clients.name), asc(projects.name), asc(engagements.code)),
 
@@ -137,17 +146,19 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
     const remainingHours = budgetHours === null ? null : budgetHours - workedHours
 
     return {
-      engagementId:    r.engagementId,
-      clientCode:      r.clientCode,
-      clientName:      r.clientName,
-      projectCode:     r.projectCode,
-      projectName:     r.projectName,
-      responsibleName: `${r.responsibleLast} ${r.responsibleFirst}`,
-      engagementCode:  r.engagementCode,
-      engagementName:  r.engagementName,
-      validUntil:      r.validUntil,
-      active:          r.validUntil >= new Date().toISOString().split('T')[0],
-      totalHours:      budgetHours,
+      engagementId:      r.engagementId,
+      clientCode:        r.clientCode,
+      clientName:        r.clientName,
+      projectCode:       r.projectCode,
+      projectName:       r.projectName,
+      responsibleName:   `${r.responsibleLast} ${r.responsibleFirst}`,
+      engagementCode:    r.engagementCode,
+      engagementName:    r.engagementName,
+      validUntil:        r.validUntil,
+      conclusa:          r.conclusa,
+      statusCode:        r.statusCode,
+      statusDescription: r.statusDescription,
+      totalHours:        budgetHours,
       workedHours,
       remainingHours,
     }
@@ -182,4 +193,17 @@ export async function getFilterProjects(clientId?: string | null): Promise<Filte
     .orderBy(projects.name)
 
   return rows.map((r) => ({ id: r.id, label: r.name }))
+}
+
+export async function getFilterEngagementStatuses(): Promise<FilterOption[]> {
+  const session = await auth()
+  requireSection(session, 'CLIENTS_VIEW')
+
+  const rows = await db
+    .select({ id: engagementStatuses.id, code: engagementStatuses.code, description: engagementStatuses.description })
+    .from(engagementStatuses)
+    .where(eq(engagementStatuses.active, true))
+    .orderBy(asc(engagementStatuses.code))
+
+  return rows.map((r) => ({ id: r.id, label: `${r.code} — ${r.description}` }))
 }
