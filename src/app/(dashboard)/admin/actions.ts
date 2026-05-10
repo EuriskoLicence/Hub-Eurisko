@@ -499,23 +499,28 @@ export async function updateExpenseCategory(
 
 // ─── ENGAGEMENT TYPES ─────────────────────────────────────────────────────────
 
-export type EngagementTypeRow = { id: string; name: string; active: boolean }
+export type EngagementTypeRow = { id: string; name: string; active: boolean; noOda: boolean }
 
 export async function getEngagementTypes(): Promise<EngagementTypeRow[]> {
   const session = await auth()
   requireSection(session, 'PARAM_ENGAGEMENTS')
-  return db.select().from(engagementTypes).orderBy(engagementTypes.name)
+  const rows = await db.select().from(engagementTypes).orderBy(engagementTypes.name)
+  return rows.map((r) => ({ id: r.id, name: r.name, active: r.active, noOda: r.noOda }))
 }
 
 export async function createEngagementType(
-  data: { name: string },
+  data: { name: string; noOda?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()
     requireSection(session, 'PARAM_ENGAGEMENTS')
     if (!data.name.trim()) return { ok: false, error: 'Il nome è obbligatorio.' }
 
-    await db.insert(engagementTypes).values({ name: data.name.trim(), active: true })
+    await db.insert(engagementTypes).values({
+      name:   data.name.trim(),
+      active: true,
+      noOda:  data.noOda ?? false,
+    })
     revalidatePath('/admin/engagement-types')
     return { ok: true }
   } catch (err: any) {
@@ -527,7 +532,7 @@ export async function createEngagementType(
 
 export async function updateEngagementType(
   id: string,
-  data: { name?: string; active?: boolean },
+  data: { name?: string; active?: boolean; noOda?: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const session = await auth()

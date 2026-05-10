@@ -10,7 +10,7 @@ import {
   createPurchaseOrderLineStatus, updatePurchaseOrderLineStatus,
 } from '@/app/(dashboard)/admin/actions'
 
-type Item = { id: string; code?: string; shortCode?: string | null; label: string; active: boolean; partTimeOnly?: boolean }
+type Item = { id: string; code?: string; shortCode?: string | null; label: string; active: boolean; partTimeOnly?: boolean; noOda?: boolean }
 type Type = 'absences' | 'engagement-types' | 'engagement-statuses' | 'po-line-statuses'
 
 // Types che usano un codice 3 caratteri alfanumerici + descrizione
@@ -54,6 +54,9 @@ export function SimpleListClient({ type, items }: Props) {
               {type === 'absences' && (
                 <th className="text-center px-4 py-3 font-medium text-gray-600 w-24">Solo PT</th>
               )}
+              {type === 'engagement-types' && (
+                <th className="text-center px-4 py-3 font-medium text-gray-600 w-24">NO OdA</th>
+              )}
               <th className="text-center px-4 py-3 font-medium text-gray-600 w-20">Attivo</th>
               <th className="w-10" />
             </tr>
@@ -86,6 +89,14 @@ export function SimpleListClient({ type, items }: Props) {
                   <td className="px-4 py-3 text-center">
                     {item.partTimeOnly
                       ? <CheckCircle2 className="h-4 w-4 text-blue-500 inline" />
+                      : <span className="text-xs text-gray-300">—</span>
+                    }
+                  </td>
+                )}
+                {type === 'engagement-types' && (
+                  <td className="px-4 py-3 text-center">
+                    {item.noOda
+                      ? <CheckCircle2 className="h-4 w-4 text-amber-500 inline" />
                       : <span className="text-xs text-gray-300">—</span>
                     }
                   </td>
@@ -127,6 +138,7 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
   const [label,        setLabel]        = useState(item?.label        ?? '')
   const [active,       setActive]       = useState(item?.active       ?? true)
   const [partTimeOnly, setPartTimeOnly] = useState(item?.partTimeOnly ?? false)
+  const [noOda,        setNoOda]        = useState(item?.noOda        ?? false)
   const [error,        setError]        = useState('')
 
   function handleSubmit(e: React.FormEvent) {
@@ -140,8 +152,8 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
           : await createAbsenceType({ shortCode, label, partTimeOnly })
       } else if (type === 'engagement-types') {
         res = item
-          ? await updateEngagementType(item.id, { name: label, active })
-          : await createEngagementType({ name: label })
+          ? await updateEngagementType(item.id, { name: label, active, noOda })
+          : await createEngagementType({ name: label, noOda })
       } else if (type === 'engagement-statuses') {
         res = item
           ? await updateEngagementStatus(item.id, { code, description: label, active })
@@ -236,6 +248,20 @@ function ItemModal({ type, item, onClose }: { type: Type; item?: Item; onClose: 
               <label htmlFor="item-part-time-only" className="text-sm text-gray-700">
                 Solo utenti part time
               </label>
+            </div>
+          )}
+          {type === 'engagement-types' && (
+            <div>
+              <div className="flex items-center gap-2">
+                <input id="item-no-oda" type="checkbox" checked={noOda} onChange={(e) => setNoOda(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-amber-500" />
+                <label htmlFor="item-no-oda" className="text-sm text-gray-700">
+                  NO OdA
+                </label>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                Le commesse di questa tipologia non saranno selezionabili nelle posizioni OdA.
+              </p>
             </div>
           )}
           {item && (

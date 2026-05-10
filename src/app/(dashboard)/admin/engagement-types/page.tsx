@@ -27,7 +27,7 @@ export default async function AdminEngagementTypesPage() {
 
       <SimpleListClient
         type="engagement-types"
-        items={items.map((i) => ({ id: i.id, label: i.name, active: i.active }))}
+        items={items.map((i) => ({ id: i.id, label: i.name, active: i.active, noOda: i.noOda }))}
       />
     </div>
   )
