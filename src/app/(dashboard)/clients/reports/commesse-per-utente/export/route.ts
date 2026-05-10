@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx-js-style'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { getCommessePerUtente, type ActiveFilter } from '../actions'
+import { getCommessePerUtente, type ConclusedFilter } from '../actions'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -11,20 +11,27 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = req.nextUrl
-  const userId        = searchParams.get('userId')        || null
-  const engagementId  = searchParams.get('engagementId')  || null
-  const responsibleId = searchParams.get('responsibleId') || null
-  const activeOnly    = (searchParams.get('activeOnly') ?? 'all') as ActiveFilter
+  const userId           = searchParams.get('userId')        || null
+  const engagementId     = searchParams.get('engagementId')  || null
+  const responsibleId    = searchParams.get('responsibleId') || null
+  const statusId         = searchParams.get('statusId')      || null
+  const conclusedFilter  = (
+    ['all', 'open', 'closed'].includes(searchParams.get('conclusedFilter') ?? '')
+      ? (searchParams.get('conclusedFilter') as ConclusedFilter)
+      : 'all'
+  ) as ConclusedFilter
 
-  const rows = await getCommessePerUtente({ userId, engagementId, responsibleId, activeOnly })
+  const rows = await getCommessePerUtente({ userId, engagementId, responsibleId, conclusedFilter, statusId })
 
-  const headers = ['Utente', 'Commessa', 'Cod. commessa', 'Attiva', 'Responsabile commessa']
+  const headers = ['Utente', 'Commessa', 'Cod. commessa', 'Conclusa', 'Stato (cod.)', 'Stato (descr.)', 'Responsabile commessa']
 
   const dataRows: (string | number)[][] = rows.map((r) => [
     r.userName,
     r.engagementName,
     r.engagementCode,
-    r.engagementActive ? 'Sì' : 'No',
+    r.conclusa ? 'Sì' : 'No',
+    r.statusCode        ?? '',
+    r.statusDescription ?? '',
     r.responsibleName,
   ])
 
@@ -45,7 +52,9 @@ export async function GET(req: NextRequest) {
     { wch: 30 }, // Utente
     { wch: 40 }, // Commessa
     { wch: 16 }, // Cod. commessa
-    { wch: 10 }, // Attiva
+    { wch: 10 }, // Conclusa
+    { wch: 12 }, // Stato (cod.)
+    { wch: 28 }, // Stato (descr.)
     { wch: 30 }, // Responsabile
   ]
 
@@ -53,7 +62,9 @@ export async function GET(req: NextRequest) {
 
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
 
-  const suffix = activeOnly === 'active' ? '-attive' : activeOnly === 'inactive' ? '-inattive' : ''
+  const suffix = conclusedFilter === 'open'   ? '-non-concluse'
+              : conclusedFilter === 'closed'  ? '-concluse'
+              :                                 ''
   const filename = `commesse-per-utente${suffix}.xlsx`
 
   return new NextResponse(buffer, {

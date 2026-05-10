@@ -1,10 +1,10 @@
 'use server'
 
-import { and, asc, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { auth } from '@/auth'
 import { db } from '@/db'
-import { clients, engagements, engagementUsers, projects, users } from '@/db/schema'
+import { clients, engagements, engagementStatuses, engagementUsers, projects, users } from '@/db/schema'
 import { requireSection } from '@/lib/permissions/auth-helpers'
 
 // Alias per distinguere utente assegnato e responsabile (stessa tabella)
@@ -14,25 +14,28 @@ const responsibleUser  = alias(users, 'responsible_user')
 // ─── Tipi ────────────────────────────────────────────────────────────────────
 
 export type CommessaUtenteRow = {
-  userId:          string
-  userName:        string   // "Cognome Nome"
-  engagementId:    string
-  engagementCode:  string
-  engagementName:  string
-  engagementActive: boolean  // derivato: validUntil >= oggi
-  responsibleId:   string
-  responsibleName: string   // "Cognome Nome"
+  userId:            string
+  userName:          string   // "Cognome Nome"
+  engagementId:      string
+  engagementCode:    string
+  engagementName:    string
+  conclusa:          boolean
+  statusCode:        string | null
+  statusDescription: string | null
+  responsibleId:     string
+  responsibleName:   string   // "Cognome Nome"
 }
 
 export type FilterOption = { id: string; label: string }
 
-export type ActiveFilter = 'all' | 'active' | 'inactive'
+export type ConclusedFilter = 'all' | 'open' | 'closed'
 
 export type CommessaUtenteFilters = {
   userId:          string | null
   engagementId:    string | null
   responsibleId:   string | null
-  activeOnly:      ActiveFilter
+  conclusedFilter: ConclusedFilter
+  statusId:        string | null
 }
 
 // ─── Dati report ─────────────────────────────────────────────────────────────
@@ -44,27 +47,30 @@ export async function getCommessePerUtente(
   requireSection(session, 'CLIENTS_VIEW')
 
   const conditions = [
-    filters.userId        ? eq(engagementUsers.userId,       filters.userId)        : undefined,
-    filters.engagementId  ? eq(engagementUsers.engagementId, filters.engagementId)  : undefined,
-    filters.responsibleId ? eq(projects.responsibleUserId,   filters.responsibleId) : undefined,
-    filters.activeOnly === 'active'   ? gte(engagements.validUntil, sql`CURRENT_DATE`) : undefined,
-    filters.activeOnly === 'inactive' ? lt(engagements.validUntil,  sql`CURRENT_DATE`) : undefined,
+    filters.userId                            ? eq(engagementUsers.userId,       filters.userId)        : undefined,
+    filters.engagementId                      ? eq(engagementUsers.engagementId, filters.engagementId)  : undefined,
+    filters.responsibleId                     ? eq(projects.responsibleUserId,   filters.responsibleId) : undefined,
+    filters.conclusedFilter === 'open'        ? eq(engagements.conclusa, false)                          : undefined,
+    filters.conclusedFilter === 'closed'      ? eq(engagements.conclusa, true)                           : undefined,
+    filters.statusId                          ? eq(engagements.statusId, filters.statusId)               : undefined,
   ].filter(Boolean) as ReturnType<typeof eq>[]
 
   const rows = await db
     .select({
-      userId:           engagementUsers.userId,
-      userLastName:     assignedUser.lastName,
-      userFirstName:    assignedUser.firstName,
-      engagementId:     engagements.id,
-      clientCode:       clients.code,
-      projectCode:      projects.code,
-      engagementCode:   engagements.code,
-      engagementName:   engagements.name,
-      engagementValidUntil: engagements.validUntil,
-      responsibleId:    projects.responsibleUserId,
-      responsibleLast:  responsibleUser.lastName,
-      responsibleFirst: responsibleUser.firstName,
+      userId:            engagementUsers.userId,
+      userLastName:      assignedUser.lastName,
+      userFirstName:     assignedUser.firstName,
+      engagementId:      engagements.id,
+      clientCode:        clients.code,
+      projectCode:       projects.code,
+      engagementCode:    engagements.code,
+      engagementName:    engagements.name,
+      conclusa:          engagements.conclusa,
+      statusCode:        engagementStatuses.code,
+      statusDescription: engagementStatuses.description,
+      responsibleId:     projects.responsibleUserId,
+      responsibleLast:   responsibleUser.lastName,
+      responsibleFirst:  responsibleUser.firstName,
     })
     .from(engagementUsers)
     .innerJoin(assignedUser,    eq(assignedUser.id,    engagementUsers.userId))
@@ -72,6 +78,7 @@ export async function getCommessePerUtente(
     .innerJoin(projects,        eq(projects.id,        engagements.projectId))
     .innerJoin(clients,         eq(clients.id,         projects.clientId))
     .innerJoin(responsibleUser, eq(responsibleUser.id, projects.responsibleUserId))
+    .leftJoin (engagementStatuses, eq(engagementStatuses.id, engagements.statusId))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(
       asc(assignedUser.lastName),
@@ -80,14 +87,16 @@ export async function getCommessePerUtente(
     )
 
   return rows.map((r) => ({
-    userId:           r.userId,
-    userName:         `${r.userLastName} ${r.userFirstName}`,
-    engagementId:     r.engagementId,
-    engagementCode:   `${r.clientCode}-${r.projectCode}-${r.engagementCode}`,
-    engagementName:   r.engagementName,
-    engagementActive: r.engagementValidUntil >= new Date().toISOString().split('T')[0],
-    responsibleId:    r.responsibleId,
-    responsibleName:  `${r.responsibleLast} ${r.responsibleFirst}`,
+    userId:            r.userId,
+    userName:          `${r.userLastName} ${r.userFirstName}`,
+    engagementId:      r.engagementId,
+    engagementCode:    `${r.clientCode}-${r.projectCode}-${r.engagementCode}`,
+    engagementName:    r.engagementName,
+    conclusa:          r.conclusa,
+    statusCode:        r.statusCode,
+    statusDescription: r.statusDescription,
+    responsibleId:     r.responsibleId,
+    responsibleName:   `${r.responsibleLast} ${r.responsibleFirst}`,
   }))
 }
 
@@ -144,4 +153,18 @@ export async function getFilterResponsibili(): Promise<FilterOption[]> {
     .orderBy(asc(users.lastName), asc(users.firstName))
 
   return rows.map((r) => ({ id: r.id, label: `${r.lastName} ${r.firstName}` }))
+}
+
+/** Stati commessa attivi (per il filtro Stato) */
+export async function getFilterEngagementStatuses(): Promise<FilterOption[]> {
+  const session = await auth()
+  requireSection(session, 'CLIENTS_VIEW')
+
+  const rows = await db
+    .select({ id: engagementStatuses.id, code: engagementStatuses.code, description: engagementStatuses.description })
+    .from(engagementStatuses)
+    .where(eq(engagementStatuses.active, true))
+    .orderBy(asc(engagementStatuses.code))
+
+  return rows.map((r) => ({ id: r.id, label: `${r.code} — ${r.description}` }))
 }
