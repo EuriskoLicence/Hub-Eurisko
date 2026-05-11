@@ -13,8 +13,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const clientId      = searchParams.get('clientId')      || null
   const responsibleId = searchParams.get('responsibleId') || null
+  const lineStatusId  = searchParams.get('lineStatusId')  || null
 
-  const rows = await getOdaListReport({ clientId, responsibleId })
+  const rows = await getOdaListReport({ clientId, responsibleId, lineStatusId })
 
   const headers = [
     'Cod. OdA',

@@ -40,6 +40,7 @@ export type FilterOption = { id: string; label: string }
 export async function getOdaListReport(filters: {
   clientId?:      string | null
   responsibleId?: string | null
+  lineStatusId?:  string | null
 }): Promise<OdaListReportRow[]> {
   const session = await auth()
   requireSection(session, 'PURCHASE_ORDERS_VIEW')
@@ -47,6 +48,7 @@ export async function getOdaListReport(filters: {
   const conditions: any[] = []
   if (filters.clientId)      conditions.push(eq(purchaseOrders.clientId,          filters.clientId))
   if (filters.responsibleId) conditions.push(eq(purchaseOrders.responsibleUserId, filters.responsibleId))
+  if (filters.lineStatusId)  conditions.push(eq(purchaseOrderLines.statusId,      filters.lineStatusId))
   const where = conditions.length === 0 ? undefined
               : conditions.length === 1 ? conditions[0]
               :                            and(...conditions)
@@ -137,4 +139,15 @@ export async function getOdaFilterResponsibles(): Promise<FilterOption[]> {
     .innerJoin(purchaseOrders, eq(purchaseOrders.responsibleUserId, users.id))
     .orderBy(asc(users.lastName), asc(users.firstName))
   return rows.map((u) => ({ id: u.id, label: `${u.lastName} ${u.firstName}` }))
+}
+
+export async function getOdaFilterLineStatuses(): Promise<FilterOption[]> {
+  const session = await auth()
+  requireSection(session, 'PURCHASE_ORDERS_VIEW')
+  const rows = await db
+    .select({ id: purchaseOrderLineStatuses.id, code: purchaseOrderLineStatuses.code, description: purchaseOrderLineStatuses.description })
+    .from(purchaseOrderLineStatuses)
+    .where(eq(purchaseOrderLineStatuses.active, true))
+    .orderBy(asc(purchaseOrderLineStatuses.code))
+  return rows.map((r) => ({ id: r.id, label: `${r.code} — ${r.description}` }))
 }

@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { getOdaListReport, getOdaFilterClients, getOdaFilterResponsibles } from './actions'
+import { getOdaListReport, getOdaFilterClients, getOdaFilterResponsibles, getOdaFilterLineStatuses } from './actions'
 import { ShoppingCart, BarChart2, FileSpreadsheet, AlertTriangle } from 'lucide-react'
 
 export const metadata = { title: 'Report Lista OdA' }
 
-type SP = { clientId?: string; responsibleId?: string }
+type SP = { clientId?: string; responsibleId?: string; lineStatusId?: string }
 
 function fmtEur(s: string | null) {
   if (s === null) return '—'
@@ -22,16 +22,19 @@ export default async function OdaListReportPage({ searchParams }: { searchParams
 
   const clientId      = searchParams.clientId      || null
   const responsibleId = searchParams.responsibleId || null
+  const lineStatusId  = searchParams.lineStatusId  || null
 
-  const [rows, filterClients, filterResponsibles] = await Promise.all([
-    getOdaListReport({ clientId, responsibleId }),
+  const [rows, filterClients, filterResponsibles, filterLineStatuses] = await Promise.all([
+    getOdaListReport({ clientId, responsibleId, lineStatusId }),
     getOdaFilterClients(),
     getOdaFilterResponsibles(),
+    getOdaFilterLineStatuses(),
   ])
 
   const exportParams = new URLSearchParams()
   if (clientId)      exportParams.set('clientId',      clientId)
   if (responsibleId) exportParams.set('responsibleId', responsibleId)
+  if (lineStatusId)  exportParams.set('lineStatusId',  lineStatusId)
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -72,6 +75,20 @@ export default async function OdaListReportPage({ searchParams }: { searchParams
               <option value="">Tutti</option>
               {filterResponsibles.map((r) => (
                 <option key={r.id} value={r.id}>{r.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Stato posizione</label>
+            <select
+              name="lineStatusId"
+              defaultValue={lineStatusId ?? ''}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">Tutti</option>
+              {filterLineStatuses.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
               ))}
             </select>
           </div>
