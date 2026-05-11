@@ -1,46 +1,56 @@
 'use server'
 
-import { and, eq, asc } from 'drizzle-orm'
+import { and, eq, asc, isNull } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
   purchaseOrders, purchaseOrderLines,
-  clients, users, engagements, engagementTypes, projects,
+  clients, users, engagements, engagementTypes, engagementStatuses, projects,
 } from '@/db/schema'
 import { requireSection } from '@/lib/permissions/auth-helpers'
 
 export type OdaPerCommessaRow = {
   // Commessa
-  engagementId:      string
-  clientId:          string
-  clientCode:        string
-  clientName:        string
-  projectId:         string
-  projectCode:       string
-  projectName:       string
-  engagementCode:    string
-  engagementName:    string
+  engagementId:       string
+  clientId:           string
+  clientCode:         string
+  clientName:         string
+  projectId:          string
+  projectCode:        string
+  projectName:        string
+  engagementCode:     string
+  engagementName:     string
   engagementTypeName: string
-  conclusa:          boolean
+  conclusa:           boolean
+  statusCode:         string | null
+  statusDescription:  string | null
   // Posizione OdA (se presente)
-  poId:              string | null
-  poCode:            string | null
-  poNumber:          string | null
-  poDate:            string | null
-  responsibleName:   string | null
-  poTotalAmount:     string | null
-  lineId:            string | null
-  lineCode:          string | null
-  externalReference: string | null
-  description:       string | null
-  amount:            string | null
+  poId:               string | null
+  poCode:             string | null
+  poNumber:           string | null
+  poDate:             string | null
+  responsibleName:    string | null
+  poTotalAmount:      string | null
+  lineId:             string | null
+  lineCode:           string | null
+  externalReference:  string | null
+  description:        string | null
+  amount:             string | null
 }
 
 export type FilterOption = { id: string; label: string }
 
+/**
+ * Filtro Cod. OdA:
+ *   - undefined / null / ''  → tutte
+ *   - 'none'                 → solo commesse senza posizioni OdA
+ *   - altro                  → codice OdA specifico (es. '000005')
+ */
 export async function getOdaPerCommessaReport(filters: {
-  clientId?:  string | null
-  projectId?: string | null
+  clientId?:    string | null
+  projectId?:   string | null
+  statusId?:    string | null
+  odaFilter?:   string | null
 }): Promise<OdaPerCommessaRow[]> {
   const session = await auth()
   requireSection(session, 'PURCHASE_ORDERS_VIEW')
@@ -48,6 +58,9 @@ export async function getOdaPerCommessaReport(filters: {
   const conditions: any[] = [eq(engagementTypes.noOda, false)]
   if (filters.clientId)  conditions.push(eq(projects.clientId, filters.clientId))
   if (filters.projectId) conditions.push(eq(engagements.projectId, filters.projectId))
+  if (filters.statusId)  conditions.push(eq(engagements.statusId, filters.statusId))
+  if (filters.odaFilter === 'none')                  conditions.push(isNull(purchaseOrderLines.id))
+  else if (filters.odaFilter && filters.odaFilter)   conditions.push(eq(purchaseOrders.code, filters.odaFilter))
   const where = conditions.length === 1 ? conditions[0] : and(...conditions)
 
   // LEFT JOIN posizioni OdA → commesse senza OdA appaiono comunque
@@ -64,6 +77,8 @@ export async function getOdaPerCommessaReport(filters: {
       engagementName:     engagements.name,
       engagementTypeName: engagementTypes.name,
       conclusa:           engagements.conclusa,
+      statusCode:         engagementStatuses.code,
+      statusDescription:  engagementStatuses.description,
       lineId:             purchaseOrderLines.id,
       lineCode:           purchaseOrderLines.code,
       externalReference:  purchaseOrderLines.externalReference,
@@ -81,6 +96,7 @@ export async function getOdaPerCommessaReport(filters: {
     .innerJoin(engagementTypes, eq(engagementTypes.id, engagements.engagementTypeId))
     .innerJoin(projects,        eq(projects.id, engagements.projectId))
     .innerJoin(clients,         eq(clients.id, projects.clientId))
+    .leftJoin (engagementStatuses, eq(engagementStatuses.id, engagements.statusId))
     .leftJoin (purchaseOrderLines, eq(purchaseOrderLines.engagementId, engagements.id))
     .leftJoin (purchaseOrders,     eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
     .leftJoin (users,              eq(users.id, purchaseOrders.responsibleUserId))
@@ -99,6 +115,8 @@ export async function getOdaPerCommessaReport(filters: {
     engagementName:     r.engagementName,
     engagementTypeName: r.engagementTypeName,
     conclusa:           r.conclusa,
+    statusCode:         r.statusCode,
+    statusDescription:  r.statusDescription,
     poId:               r.poId,
     poCode:             r.poCode,
     poNumber:           r.poNumber,
@@ -143,4 +161,26 @@ export async function getCommessaFilterProjects(clientId: string | null): Promis
     .where(conds.length === 1 ? conds[0] : and(...conds))
     .orderBy(asc(projects.name))
   return rows.map((p) => ({ id: p.id, label: `${p.name} (${p.code})` }))
+}
+
+export async function getCommessaFilterStatuses(): Promise<FilterOption[]> {
+  const session = await auth()
+  requireSection(session, 'PURCHASE_ORDERS_VIEW')
+  const rows = await db
+    .select({ id: engagementStatuses.id, code: engagementStatuses.code, description: engagementStatuses.description })
+    .from(engagementStatuses)
+    .where(eq(engagementStatuses.active, true))
+    .orderBy(asc(engagementStatuses.code))
+  return rows.map((r) => ({ id: r.id, label: `${r.code} — ${r.description}` }))
+}
+
+/** Codici OdA esistenti (per popolare il filtro "Cod. OdA") */
+export async function getCommessaFilterOdaCodes(): Promise<{ code: string; number: string }[]> {
+  const session = await auth()
+  requireSection(session, 'PURCHASE_ORDERS_VIEW')
+  const rows = await db
+    .select({ code: purchaseOrders.code, number: purchaseOrders.number })
+    .from(purchaseOrders)
+    .orderBy(asc(purchaseOrders.code))
+  return rows
 }

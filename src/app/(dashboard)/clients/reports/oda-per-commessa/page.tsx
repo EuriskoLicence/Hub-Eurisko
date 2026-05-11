@@ -1,12 +1,23 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { getOdaPerCommessaReport, getCommessaFilterClients, getCommessaFilterProjects } from './actions'
+import {
+  getOdaPerCommessaReport,
+  getCommessaFilterClients,
+  getCommessaFilterProjects,
+  getCommessaFilterStatuses,
+  getCommessaFilterOdaCodes,
+} from './actions'
 import { Tag, BarChart2, FileSpreadsheet } from 'lucide-react'
 
 export const metadata = { title: 'Report OdA per commessa' }
 
-type SP = { clientId?: string; projectId?: string }
+type SP = {
+  clientId?:  string
+  projectId?: string
+  statusId?:  string
+  odaFilter?: string
+}
 
 function fmtEur(s: string | null) {
   if (s === null) return '—'
@@ -23,16 +34,22 @@ export default async function OdaPerCommessaReportPage({ searchParams }: { searc
 
   const clientId  = searchParams.clientId  || null
   const projectId = searchParams.projectId || null
+  const statusId  = searchParams.statusId  || null
+  const odaFilter = searchParams.odaFilter || null
 
-  const [rows, filterClients, filterProjects] = await Promise.all([
-    getOdaPerCommessaReport({ clientId, projectId }),
+  const [rows, filterClients, filterProjects, filterStatuses, filterOdaCodes] = await Promise.all([
+    getOdaPerCommessaReport({ clientId, projectId, statusId, odaFilter }),
     getCommessaFilterClients(),
     getCommessaFilterProjects(clientId),
+    getCommessaFilterStatuses(),
+    getCommessaFilterOdaCodes(),
   ])
 
   const exportParams = new URLSearchParams()
   if (clientId)  exportParams.set('clientId',  clientId)
   if (projectId) exportParams.set('projectId', projectId)
+  if (statusId)  exportParams.set('statusId',  statusId)
+  if (odaFilter) exportParams.set('odaFilter', odaFilter)
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -74,6 +91,35 @@ export default async function OdaPerCommessaReportPage({ searchParams }: { searc
               <option value="">Tutti</option>
               {filterProjects.map((p) => (
                 <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Stato commessa</label>
+            <select
+              name="statusId"
+              defaultValue={statusId ?? ''}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+            >
+              <option value="">Tutti</option>
+              {filterStatuses.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Cod. OdA</label>
+            <select
+              name="odaFilter"
+              defaultValue={odaFilter ?? ''}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+            >
+              <option value="">Tutti</option>
+              <option value="none">— Solo commesse senza OdA —</option>
+              {filterOdaCodes.map((o) => (
+                <option key={o.code} value={o.code}>{o.code} ({o.number})</option>
               ))}
             </select>
           </div>
@@ -125,6 +171,7 @@ export default async function OdaPerCommessaReportPage({ searchParams }: { searc
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Cod. comm.</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Commessa</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Tipologia</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Stato comm.</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Cod. OdA</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">N° cliente</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Data OdA</th>
@@ -147,6 +194,17 @@ export default async function OdaPerCommessaReportPage({ searchParams }: { searc
                     {r.conclusa && <span className="ml-1 text-[10px] text-emerald-700">(concl.)</span>}
                   </td>
                   <td className="px-2 py-2 text-gray-500 whitespace-nowrap">{r.engagementTypeName}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">
+                    {r.statusCode
+                      ? <span
+                          className="inline-block rounded bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-indigo-700"
+                          title={r.statusDescription ?? undefined}
+                        >
+                          {r.statusCode}
+                        </span>
+                      : <span className="text-gray-300 text-xs">—</span>
+                    }
+                  </td>
                   <td className="px-2 py-2 font-mono whitespace-nowrap">
                     {r.poCode ?? <span className="text-amber-600 italic text-[11px]">Nessun OdA</span>}
                   </td>

@@ -13,8 +13,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const clientId  = searchParams.get('clientId')  || null
   const projectId = searchParams.get('projectId') || null
+  const statusId  = searchParams.get('statusId')  || null
+  const odaFilter = searchParams.get('odaFilter') || null
 
-  const rows = await getOdaPerCommessaReport({ clientId, projectId })
+  const rows = await getOdaPerCommessaReport({ clientId, projectId, statusId, odaFilter })
 
   const headers = [
     'Cod. cliente',
@@ -25,6 +27,8 @@ export async function GET(req: NextRequest) {
     'Commessa',
     'Tipologia',
     'Conclusa',
+    'Stato comm. (cod.)',
+    'Stato comm. (descr.)',
     'Cod. OdA',
     'N° OdA cliente',
     'Data OdA',
@@ -44,6 +48,8 @@ export async function GET(req: NextRequest) {
     r.engagementName,
     r.engagementTypeName,
     r.conclusa ? 'Sì' : 'No',
+    r.statusCode        ?? '',
+    r.statusDescription ?? '',
     r.poCode             ?? '',
     r.poNumber           ?? '',
     r.poDate             ? new Date(r.poDate + 'T00:00:00').toLocaleDateString('it-IT') : '',
@@ -67,18 +73,18 @@ export async function GET(req: NextRequest) {
     if (ws[cellRef]) ws[cellRef].s = headerStyle
   }
 
-  // Format EUR per importo posizione (col 15)
+  // Format EUR per importo posizione (col 17)
   for (let r = 1; r <= rows.length; r++) {
-    const ref = XLSX.utils.encode_cell({ r, c: 15 })
+    const ref = XLSX.utils.encode_cell({ r, c: 17 })
     if (ws[ref] && typeof ws[ref].v === 'number') {
       ws[ref].z = '#,##0.00 "€"'
     }
   }
 
-  // Evidenzia righe senza OdA (testo grigio italics non disponibile in xlsx-js-style facilmente, uso colore leggero)
+  // Evidenzia righe senza OdA su Cod. OdA (col 10)
   rows.forEach((r, rowIdx) => {
     if (!r.poCode) {
-      const ref = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 8 })
+      const ref = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 10 })
       if (ws[ref]) ws[ref].s = { font: { color: { rgb: 'D97706' }, italic: true } }
     }
   })
@@ -92,6 +98,8 @@ export async function GET(req: NextRequest) {
     { wch: 28 }, // Commessa
     { wch: 18 }, // Tipologia
     { wch:  9 }, // Conclusa
+    { wch: 14 }, // Stato comm. (cod.)
+    { wch: 24 }, // Stato comm. (descr.)
     { wch: 10 }, // Cod. OdA
     { wch: 14 }, // N° OdA cliente
     { wch: 11 }, // Data OdA
