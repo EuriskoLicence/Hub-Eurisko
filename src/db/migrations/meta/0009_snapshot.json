@@ -1,6 +1,6 @@
 {
-  "id": "8e5ec8e0-0008-4008-8008-000000000008",
-  "prevId": "7e5ec7e0-0007-4007-8007-000000000007",
+  "id": "763b94c8-126a-46d8-9f1d-75bd69702b4f",
+  "prevId": "8e5ec8e0-0008-4008-8008-000000000008",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -323,6 +323,13 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
+        },
+        "extra_only": {
+          "name": "extra_only",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {},

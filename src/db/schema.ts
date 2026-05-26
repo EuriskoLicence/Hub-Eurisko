@@ -177,6 +177,7 @@ export const engagementUsers = pgTable(
   {
     engagementId: uuid('engagement_id').notNull().references(() => engagements.id, { onDelete: 'cascade' }),
     userId:       uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    extraOnly:    boolean('extra_only').notNull().default(false),
   },
   (t) => ({
     pk: primaryKey({ columns: [t.engagementId, t.userId] }),

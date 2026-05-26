@@ -94,7 +94,7 @@ export async function getTimesheetPageData(
     notes:         r.notes ?? null,
   }))
 
-  // Commesse abilitate per l'utente (solo attive)
+  // Commesse abilitate per l'utente (solo attive, escluse quelle "solo extra")
   const engRows = await db
     .select({
       id:          engagements.id,
@@ -110,6 +110,7 @@ export async function getTimesheetPageData(
     .where(
       and(
         eq(engagementUsers.userId,  userId),
+        eq(engagementUsers.extraOnly, false),
         eq(projects.active,         true),
         eq(clients.active,          true),
         gte(engagements.validUntil, sql`CURRENT_DATE`),
@@ -243,13 +244,31 @@ export async function saveTimesheetEntries(
       return { ok: false, error: 'Il mese non è in bozza: non puoi modificare le ore.' }
     }
 
-    // Recupera le commesse abilitate per l'utente
+    // Recupera le commesse abilitate per l'utente (escluse quelle "solo extra")
     const allowedEngRows = await db
       .select({ engagementId: engagementUsers.engagementId })
       .from(engagementUsers)
-      .where(eq(engagementUsers.userId, userId))
+      .where(and(
+        eq(engagementUsers.userId, userId),
+        eq(engagementUsers.extraOnly, false),
+      ))
 
     const allowedEngIds = new Set(allowedEngRows.map((r) => r.engagementId))
+
+    // Eccezione retro-compatibile: includere anche le commesse già referenziate
+    // da entry esistenti nel mese, anche se nel frattempo sono state marcate
+    // come "solo extra" (l'utente deve poter modificare/cancellare le righe storiche).
+    const existingEngRows = await db
+      .select({ engagementId: timesheetEntries.engagementId })
+      .from(timesheetEntries)
+      .where(and(
+        eq(timesheetEntries.userId, userId),
+        eq(timesheetEntries.year,   year),
+        eq(timesheetEntries.month,  month),
+      ))
+    for (const r of existingEngRows) {
+      if (r.engagementId) allowedEngIds.add(r.engagementId)
+    }
 
     // Valida le entries
     const dayTotals = new Map<number, number>()

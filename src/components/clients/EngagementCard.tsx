@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Users, UserPlus, UserMinus, Pencil, ChevronDown, X, Clock, CalendarX2, CheckCircle2, Activity } from 'lucide-react'
+import { Tag, Users, UserPlus, UserMinus, Pencil, ChevronDown, X, Clock, CalendarX2, CheckCircle2, Activity, Timer } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { updateEngagement, assignUserToEngagement, removeUserFromEngagement } from '@/app/(dashboard)/clients/actions'
+import { updateEngagement, assignUserToEngagement, removeUserFromEngagement, setEngagementUserExtraOnly } from '@/app/(dashboard)/clients/actions'
 import type { EngagementDetail, UserOption, EngagementStatusOption } from '@/app/(dashboard)/clients/actions'
 
 type Props = {
@@ -58,6 +58,14 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
   function handleRemoveUser(userId: string) {
     startTransition(async () => {
       const res = await removeUserFromEngagement(engagement.id, userId)
+      if (res.ok) router.refresh()
+      else setError(res.error)
+    })
+  }
+
+  function handleToggleExtraOnly(userId: string, newValue: boolean) {
+    startTransition(async () => {
+      const res = await setEngagementUserExtraOnly(engagement.id, userId, newValue)
       if (res.ok) router.refresh()
       else setError(res.error)
     })
@@ -150,21 +158,49 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
             ) : (
               <div className="space-y-1">
                 {engagement.assignedUsers.map((u) => (
-                  <div key={u.userId} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5">
-                    <div>
-                      <span className="text-sm text-gray-800">{u.fullName}</span>
-                      <span className="text-xs text-gray-400 ml-2">{u.email}</span>
+                  <div key={u.userId} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-1.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm text-gray-800">{u.fullName}</span>
+                        {u.extraOnly && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 border border-teal-200 px-2 py-0.5 text-[10px] font-medium text-teal-700">
+                            <Timer className="h-3 w-3" />
+                            Solo extra
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-400">{u.email}</span>
                     </div>
                     {canManage && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveUser(u.userId)}
-                        disabled={isPending}
-                        className="rounded p-0.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                        title="Rimuovi"
-                      >
-                        <UserMinus className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <label
+                          className={cn(
+                            'flex items-center gap-1.5 cursor-pointer select-none text-[11px]',
+                            u.extraOnly ? 'text-teal-700' : 'text-gray-400 hover:text-gray-600',
+                          )}
+                          title={u.extraOnly
+                            ? "L'utente vedrà questa commessa SOLO nel timesheet extra"
+                            : "L'utente vede questa commessa sia in ordinario sia in extra"}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={u.extraOnly}
+                            onChange={(e) => handleToggleExtraOnly(u.userId, e.target.checked)}
+                            disabled={isPending}
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                          />
+                          Solo extra
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveUser(u.userId)}
+                          disabled={isPending}
+                          className="rounded p-0.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                          title="Rimuovi"
+                        >
+                          <UserMinus className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}

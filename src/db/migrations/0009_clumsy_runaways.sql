@@ -1,0 +1,1 @@
+ALTER TABLE "engagement_users" ADD COLUMN "extra_only" boolean DEFAULT false NOT NULL;

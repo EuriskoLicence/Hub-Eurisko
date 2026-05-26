@@ -44,7 +44,7 @@ export type EngagementDetail = {
   statusId:           string | null
   statusCode:         string | null
   statusDescription:  string | null
-  assignedUsers:      { userId: string; fullName: string; email: string }[]
+  assignedUsers:      { userId: string; fullName: string; email: string; extraOnly: boolean }[]
 }
 
 export type EngagementStatusOption = { id: string; code: string; description: string }
@@ -228,6 +228,7 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
           firstName:    users.firstName,
           lastName:     users.lastName,
           email:        users.email,
+          extraOnly:    engagementUsers.extraOnly,
         })
         .from(engagementUsers)
         .innerJoin(users, eq(users.id, engagementUsers.userId))
@@ -235,13 +236,14 @@ export async function getProjectDetail(projectId: string): Promise<ProjectDetail
         .orderBy(users.lastName, users.firstName)
     : []
 
-  const assignedByEng = new Map<string, { userId: string; fullName: string; email: string }[]>()
+  const assignedByEng = new Map<string, { userId: string; fullName: string; email: string; extraOnly: boolean }[]>()
   for (const a of assignedRows) {
     if (!assignedByEng.has(a.engagementId)) assignedByEng.set(a.engagementId, [])
     assignedByEng.get(a.engagementId)!.push({
-      userId:   a.userId,
-      fullName: `${a.firstName} ${a.lastName}`,
-      email:    a.email,
+      userId:    a.userId,
+      fullName:  `${a.firstName} ${a.lastName}`,
+      email:     a.email,
+      extraOnly: a.extraOnly,
     })
   }
 
@@ -731,6 +733,47 @@ export async function removeUserFromEngagement(
     await db
       .delete(engagementUsers)
       .where(and(eq(engagementUsers.engagementId, engagementId), eq(engagementUsers.userId, userId)))
+
+    revalidatePath(`/clients/${ownerCheck.clientId}/projects/${engRow[0].projectId}`)
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
+
+/**
+ * Aggiorna il flag `extra_only` di un'assegnazione utente → commessa.
+ * Se true, la commessa è abilitata SOLO nel timesheet extra (non in quello ordinario).
+ */
+export async function setEngagementUserExtraOnly(
+  engagementId: string,
+  userId: string,
+  extraOnly: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'CLIENTS_MANAGE')
+    const requesterId = session.user.id
+
+    const engRow = await db
+      .select({ projectId: engagements.projectId })
+      .from(engagements)
+      .where(eq(engagements.id, engagementId))
+      .limit(1)
+
+    if (!engRow.length) return { ok: false, error: 'Commessa non trovata.' }
+
+    const ownerCheck = await checkEngagementOwnership(engRow[0].projectId, requesterId)
+    if ('error' in ownerCheck) return { ok: false, error: ownerCheck.error }
+
+    const result = await db
+      .update(engagementUsers)
+      .set({ extraOnly })
+      .where(and(eq(engagementUsers.engagementId, engagementId), eq(engagementUsers.userId, userId)))
+      .returning({ userId: engagementUsers.userId })
+
+    if (result.length === 0) return { ok: false, error: 'Assegnazione utente non trovata.' }
 
     revalidatePath(`/clients/${ownerCheck.clientId}/projects/${engRow[0].projectId}`)
     return { ok: true }
