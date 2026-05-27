@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo, useRef, useLayoutEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Save, AlertTriangle, ChevronRight, X, ArrowLeft, User, RotateCcw } from 'lucide-react'
+import { Plus, Save, AlertTriangle, ChevronRight, ChevronDown, X, ArrowLeft, User, RotateCcw, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StatusBadge } from './StatusBadge'
 import { HolidayBadge } from './HolidayBadge'
@@ -80,6 +80,16 @@ function dayTotals(rows: GridRow[], days: number[]): Record<number, number> {
   return totals
 }
 
+// ─── Totale ore per riga (commessa) sull'intero mese (può essere negativo) ────
+
+function rowTotal(row: GridRow): number {
+  return Object.values(row.hours).reduce<number>((sum, h) => {
+    if (h === '') return sum
+    const n = Number(h)
+    return isFinite(n) ? sum + n : sum
+  }, 0)
+}
+
 // ─── Componente principale ────────────────────────────────────────────────────
 
 export function ExtraMonthGrid({
@@ -106,6 +116,7 @@ export function ExtraMonthGrid({
   const days        = calendar.map((d) => d.dayOfMonth)
   const totals      = useMemo(() => dayTotals(rows, days), [rows, days])
   const totalHours  = useMemo(() => Object.values(totals).reduce((a, b) => a + b, 0), [totals])
+  const rowTotals   = useMemo(() => rows.map(rowTotal), [rows])
   const workingDays = calendar.filter((d) => d.isWorkingDay).length
   const filledDays  = calendar.filter((d) => d.isWorkingDay && totals[d.dayOfMonth] !== 0).length
 
@@ -273,6 +284,7 @@ export function ExtraMonthGrid({
           calendar={calendar}
           rows={rows}
           totals={totals}
+          rowTotals={rowTotals}
           isEditable={isEditable}
           engagements={engagements}
           onCellChange={handleCellChange}
@@ -288,6 +300,7 @@ export function ExtraMonthGrid({
           calendar={calendar}
           rows={rows}
           totals={totals}
+          rowTotals={rowTotals}
           isEditable={isEditable}
           onCellChange={handleCellChange}
           onFillDefault={handleFillDefault}
@@ -364,12 +377,13 @@ export function ExtraMonthGrid({
 // ─── Griglia Desktop ──────────────────────────────────────────────────────────
 
 function DesktopGrid({
-  calendar, rows, totals, isEditable,
+  calendar, rows, totals, rowTotals, isEditable,
   onCellChange, onFillDefault, onRemoveRow,
 }: {
   calendar:      CalendarDaySerialized[]
   rows:          GridRow[]
   totals:        Record<number, number>
+  rowTotals:     number[]
   isEditable:    boolean
   onCellChange:  (rowIdx: number, day: number, value: string) => void
   onFillDefault: (rowIdx: number, hours: number) => void
@@ -466,6 +480,11 @@ function DesktopGrid({
                   {d.isHoliday && d.holidayName && <HolidayBadge name={d.holidayName} />}
                 </th>
               ))}
+              {/* Totale ore per riga (mese) */}
+              <th className="border-b border-gray-200 border-l border-gray-200 bg-gray-50 px-2 py-2 text-center min-w-[64px]">
+                <div className="text-xs font-semibold text-gray-700">Totale</div>
+                <div className="text-[10px] text-gray-400">mese</div>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -512,6 +531,16 @@ function DesktopGrid({
                     </td>
                   )
                 })}
+                {/* Cella totale riga */}
+                <td className="border-b border-gray-100 border-l border-gray-200 bg-gray-50 px-2 py-1 text-center align-middle">
+                  {rowTotals[ri] === 0
+                    ? <span className="text-xs text-gray-300">—</span>
+                    : <span className={cn(
+                        'text-xs font-semibold tabular-nums',
+                        rowTotals[ri] < 0 ? 'text-orange-600' : 'text-gray-800',
+                      )}>{rowTotals[ri]}h</span>
+                  }
+                </td>
               </tr>
             ))}
 
@@ -533,6 +562,21 @@ function DesktopGrid({
                   </td>
                 )
               })}
+              {/* Cella totale mese (somma totali riga) */}
+              {(() => {
+                const monthTotal = rowTotals.reduce((s, n) => s + n, 0)
+                return (
+                  <td className="border-t-2 border-gray-300 border-l border-gray-200 bg-gray-100 px-2 py-1.5 text-center">
+                    {monthTotal === 0
+                      ? <span className="text-xs text-gray-300">—</span>
+                      : <span className={cn(
+                          'text-xs font-semibold tabular-nums',
+                          monthTotal < 0 ? 'text-orange-600' : 'text-gray-900',
+                        )}>{monthTotal}h</span>
+                    }
+                  </td>
+                )
+              })()}
             </tr>
           </tbody>
         </table>
@@ -545,12 +589,13 @@ function DesktopGrid({
 // ─── Vista Mobile ─────────────────────────────────────────────────────────────
 
 function MobileView({
-  calendar, rows, totals, isEditable, engagements,
+  calendar, rows, totals, rowTotals, isEditable, engagements,
   onCellChange, onFillDefault, onRemoveRow, onAddRow,
 }: {
   calendar:      CalendarDaySerialized[]
   rows:          GridRow[]
   totals:        Record<number, number>
+  rowTotals:     number[]
   isEditable:    boolean
   engagements:   { id: string; name: string; code: string; clientName: string }[]
   onCellChange:  (rowIdx: number, day: number, value: string) => void
@@ -558,10 +603,62 @@ function MobileView({
   onRemoveRow:   (rowIdx: number) => void
   onAddRow:      (id: string) => void
 }) {
-  const [openDay, setOpenDay] = useState<number | null>(null)
+  const [openDay,     setOpenDay]     = useState<number | null>(null)
+  const [summaryOpen, setSummaryOpen] = useState(false)
+  const monthTotal = rowTotals.reduce((s, n) => s + n, 0)
 
   return (
     <div className="space-y-2">
+      {/* Riepilogo per riga (collapsibile) */}
+      {rows.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setSummaryOpen((p) => !p)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-800">Riepilogo per riga</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                'text-sm font-semibold tabular-nums',
+                monthTotal === 0 ? 'text-gray-400' :
+                monthTotal < 0   ? 'text-orange-600' :
+                                   'text-gray-900',
+              )}>
+                {monthTotal === 0 ? '—' : `${monthTotal}h`}
+              </span>
+              <ChevronDown className={cn('h-4 w-4 text-gray-400 transition-transform', summaryOpen && 'rotate-180')} />
+            </div>
+          </button>
+
+          {summaryOpen && (
+            <div className="border-t border-gray-100 divide-y divide-gray-100">
+              {rows.map((row, i) => (
+                <div key={row.id} className="flex items-center justify-between px-4 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-gray-800 truncate">{row.label}</div>
+                    {row.sublabel && (
+                      <div className="text-xs text-gray-400 truncate">{row.sublabel}</div>
+                    )}
+                  </div>
+                  <span className={cn(
+                    'text-sm font-semibold tabular-nums shrink-0 ml-3',
+                    rowTotals[i] === 0 ? 'text-gray-300' :
+                    rowTotals[i] < 0   ? 'text-orange-600' :
+                                         'text-gray-800',
+                  )}>
+                    {rowTotals[i] === 0 ? '—' : `${rowTotals[i]}h`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Aggiungi commessa (mobile) */}
       {isEditable && (
         <AddRowMobile
