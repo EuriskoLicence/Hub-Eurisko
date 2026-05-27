@@ -974,8 +974,13 @@ function MobileRowCard({ row, rowIdx, workDays, isReadOnly, isPending, year, mon
         onClick={() => setExpanded((p) => !p)}
         className="w-full flex items-center justify-between px-4 py-3 text-left"
       >
-        <div>
+        <div className="min-w-0">
           <div className="font-medium text-gray-800 text-sm">{row.categoryLabel}</div>
+          {row.engagementName && (
+            <div className="text-xs text-blue-600 truncate max-w-[200px]" title={row.engagementName}>
+              {row.engagementName}
+            </div>
+          )}
           {row.kmRate && (
             <div className="text-xs text-gray-400">€ {row.kmRate}/km</div>
           )}
