@@ -56,7 +56,11 @@ export async function GET(req: NextRequest) {
       })
       .from(timesheetEntries)
       .innerJoin(absenceTypes, eq(timesheetEntries.absenceTypeId, absenceTypes.id))
-      .where(and(eq(timesheetEntries.year, year), eq(timesheetEntries.month, month)))
+      .where(and(
+        eq(timesheetEntries.year, year),
+        eq(timesheetEntries.month, month),
+        eq(absenceTypes.partTimeOnly, false),  // esclude voci "Solo PT"
+      ))
 
     const userNameMap = new Map(activeUsers.map((u) => [u.id, `${u.lastName} ${u.firstName}`]))
     const periodLabel = `${IT_MONTHS[month - 1]} ${year}`

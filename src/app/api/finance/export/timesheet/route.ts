@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
         and(
           eq(timesheetEntries.year,  year),
           eq(timesheetEntries.month, month),
+          eq(absenceTypes.partTimeOnly, false),  // esclude voci "Solo PT"
         ),
       )
 
