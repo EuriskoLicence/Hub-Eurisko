@@ -93,7 +93,8 @@ export async function getExpenseForMonth(year: number, month: number): Promise<E
     .innerJoin(clients,     eq(projects.clientId,            clients.id))
     .where(
       and(
-        eq(engagementUsers.userId, userId),
+        eq(engagementUsers.userId,    userId),
+        eq(engagementUsers.extraOnly, false),  // esclude commesse "Solo extra"
         eq(projects.active,        true),
         eq(clients.active,         true),
         gte(engagements.validUntil, sql`CURRENT_DATE`),
@@ -262,6 +263,37 @@ export async function saveExpenseLines(
 
       if (!reportRows.length)                return { ok: false, error: 'Nota spese non trovata.' }
       if (reportRows[0].status !== 'draft')  return { ok: false, error: 'Non puoi modificare questa nota spese.' }
+    }
+
+    // ── Validazione commesse ────────────────────────────────────────────────
+    // Commesse abilitate per l'utente (escluse quelle "Solo extra")
+    const allowedEngRows = await db
+      .select({ engagementId: engagementUsers.engagementId })
+      .from(engagementUsers)
+      .where(and(
+        eq(engagementUsers.userId,    userId),
+        eq(engagementUsers.extraOnly, false),
+      ))
+    const allowedEngIds = new Set<string>(
+      allowedEngRows.map((r) => r.engagementId).filter((id): id is string => id !== null),
+    )
+
+    // Eccezione retro-compatibile: includere anche le commesse già referenziate
+    // da righe esistenti dello stesso report (l'utente può comunque modificare/
+    // cancellare le righe storiche su commesse poi diventate "solo extra").
+    const existingEngRows = await db
+      .select({ engagementId: expenseLines.engagementId })
+      .from(expenseLines)
+      .where(eq(expenseLines.reportId, actualReportId))
+    for (const r of existingEngRows) {
+      if (r.engagementId) allowedEngIds.add(r.engagementId)
+    }
+
+    // Valida le righe in arrivo
+    for (const line of lines) {
+      if (line.engagementId && !allowedEngIds.has(line.engagementId)) {
+        return { ok: false, error: 'Commessa non abilitata per questo utente.' }
+      }
     }
 
     // Legge la tariffa km dal profilo utente (non si accetta il valore dal client)
