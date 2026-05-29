@@ -7,6 +7,7 @@ import {
   getPurchaseOrderDetail,
   getResponsibleCandidates,
   getOpenEngagementsForClient,
+  getReferencedInactiveEngagementsForOrder,
   getPurchaseOrderLineStatusOptions,
 } from '../actions'
 import { OrderHeaderEdit }       from '@/components/orders/OrderHeaderEdit'
@@ -25,11 +26,18 @@ export default async function PurchaseOrderDetailPage({ params }: Props) {
   const po = await getPurchaseOrderDetail(params.id)
   if (!po) notFound()
 
-  const [responsibles, engagements, lineStatuses] = await Promise.all([
+  const [responsibles, openEngagements, inactiveEngagements, lineStatuses] = await Promise.all([
     getResponsibleCandidates(),
     getOpenEngagementsForClient(po.clientId),
+    getReferencedInactiveEngagementsForOrder(po.id),
     getPurchaseOrderLineStatusOptions(),
   ])
+
+  // Merge: opzioni selezionabili + commesse storiche inattive (marcate inactive)
+  const engagements = [
+    ...openEngagements.map((e) => ({ ...e, inactive: false })),
+    ...inactiveEngagements,
+  ]
 
   function fmtEur(s: string) {
     return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(Number(s))

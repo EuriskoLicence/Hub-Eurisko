@@ -66,7 +66,7 @@ export type PurchaseOrderDetail = {
 
 export type ResponsibleOption = { id: string; name: string; email: string }
 
-export type EngagementOption = { id: string; label: string }
+export type EngagementOption = { id: string; label: string; inactive?: boolean }
 
 export type LineStatusOption = { id: string; code: string; description: string }
 
@@ -301,6 +301,65 @@ export async function getOpenEngagementsForClient(clientId: string): Promise<Eng
   return rows.map((r) => ({
     id:    r.id,
     label: `${r.projectName} (${r.projectCode}) · ${r.engCode} ${r.engName}`,
+  }))
+}
+
+/**
+ * Commesse già referenziate dalle posizioni di un'OdA che NON sarebbero più
+ * selezionabili oggi (progetto inattivo, conclusa, validUntil scaduto, oppure
+ * tipologia ora flaggata NO OdA). Servono per mostrare correttamente la commessa
+ * nelle posizioni storiche del grid (marcate come inactive=true).
+ */
+export async function getReferencedInactiveEngagementsForOrder(
+  purchaseOrderId: string,
+): Promise<EngagementOption[]> {
+  const session = await auth()
+  requireSection(session, 'PURCHASE_ORDERS_VIEW')
+
+  const today = new Date().toISOString().split('T')[0]
+
+  // Recupera la testata per ottenere il clientId
+  const headRows = await db
+    .select({ clientId: purchaseOrders.clientId })
+    .from(purchaseOrders)
+    .where(eq(purchaseOrders.id, purchaseOrderId))
+    .limit(1)
+  if (!headRows.length) return []
+  const clientId = headRows[0].clientId
+
+  // Tutte le commesse referenziate dalle posizioni di quest'OdA
+  const referenced = await db
+    .selectDistinct({
+      id:                engagements.id,
+      engCode:           engagements.code,
+      engName:           engagements.name,
+      projectName:       projects.name,
+      projectCode:       projects.code,
+      projectActive:     projects.active,
+      projectClientId:   projects.clientId,
+      conclusa:          engagements.conclusa,
+      validUntil:        engagements.validUntil,
+      typeNoOda:         engagementTypes.noOda,
+    })
+    .from(purchaseOrderLines)
+    .innerJoin(engagements,     eq(engagements.id, purchaseOrderLines.engagementId))
+    .innerJoin(projects,        eq(projects.id,    engagements.projectId))
+    .innerJoin(engagementTypes, eq(engagementTypes.id, engagements.engagementTypeId))
+    .where(eq(purchaseOrderLines.purchaseOrderId, purchaseOrderId))
+
+  // Filtra solo quelle che NON soddisfano i criteri di getOpenEngagementsForClient
+  const inactive = referenced.filter((r) => {
+    return r.projectClientId !== clientId
+        || r.projectActive === false
+        || r.typeNoOda === true
+        || r.conclusa === true
+        || r.validUntil < today
+  })
+
+  return inactive.map((r) => ({
+    id:       r.id,
+    label:    `${r.projectName} (${r.projectCode}) · ${r.engCode} ${r.engName} [Inattiva]`,
+    inactive: true,
   }))
 }
 
@@ -743,6 +802,17 @@ export async function savePurchaseOrderLines(
       }
     }
 
+    // Carica le righe esistenti (id, code, engagementId) — usate sia per la
+    // validazione (eccezione retro-compatibile) sia per la replace strategy.
+    const existingLines = await db
+      .select({
+        id:           purchaseOrderLines.id,
+        code:         purchaseOrderLines.code,
+        engagementId: purchaseOrderLines.engagementId,
+      })
+      .from(purchaseOrderLines)
+      .where(eq(purchaseOrderLines.purchaseOrderId, purchaseOrderId))
+
     // Verifica engagement validi (cliente, attivi, non conclusi, tipologia non NO OdA)
     const engagementIds = Array.from(new Set(parsedLines.map((l) => l.engagementId)))
     const today = new Date().toISOString().split('T')[0]
@@ -760,19 +830,23 @@ export async function savePurchaseOrderLines(
         sql`${engagements.validUntil} >= ${today}`,
       ))
     const validEngIds = new Set(validEngs.map((e) => e.id))
-    for (const eId of engagementIds) {
-      if (!validEngIds.has(eId)) {
-        return { ok: false, error: 'Una o più commesse non sono valide (cliente, stato o tipologia incompatibili).' }
-      }
+
+    // Eccezione: consenti l'uso di commesse oggi NON valide ma SOLO se referenziate
+    // da una riga esistente con id presente e engagementId NON cambiato rispetto al DB.
+    // In questo modo le posizioni storiche con commesse poi diventate inattive
+    // restano modificabili negli altri campi (descrizione, importo, stato, ecc.).
+    const existingLineIdToEng = new Map(existingLines.map((l) => [l.id, l.engagementId]))
+    for (const l of parsedLines) {
+      const eId = l.engagementId
+      if (validEngIds.has(eId)) continue
+      // riga esistente con engagementId NON cambiato → consenti
+      if (l.id && existingLineIdToEng.get(l.id) === eId) continue
+      return { ok: false, error: 'Una o più commesse non sono valide (cliente, stato o tipologia incompatibili).' }
     }
 
     // Strategy: replace
     // 1) cancello le righe esistenti che non sono più nella lista (per id)
     const incomingIds = parsedLines.filter((l) => l.id).map((l) => l.id!) as string[]
-    const existingLines = await db
-      .select({ id: purchaseOrderLines.id, code: purchaseOrderLines.code })
-      .from(purchaseOrderLines)
-      .where(eq(purchaseOrderLines.purchaseOrderId, purchaseOrderId))
     const toDelete = existingLines.filter((e) => !incomingIds.includes(e.id))
     if (toDelete.length > 0) {
       await db.delete(purchaseOrderLines).where(inArray(purchaseOrderLines.id, toDelete.map((d) => d.id)))

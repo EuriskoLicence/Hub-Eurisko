@@ -16,7 +16,7 @@ type LineRow = {
   __isNew?:          boolean
 }
 
-type EngagementOption = { id: string; label: string }
+type EngagementOption = { id: string; label: string; inactive?: boolean }
 type LineStatusOption = { id: string; code: string; description: string }
 
 type Props = {
@@ -207,7 +207,7 @@ export function OrderLinesGrid({ purchaseOrderId, totalAmount, initialLines, eng
                   >
                     <option value="">Seleziona…</option>
                     {engagements.map((e) => (
-                      <option key={e.id} value={e.id}>{e.label}</option>
+                      <option key={e.id} value={e.id} disabled={e.inactive}>{e.label}</option>
                     ))}
                   </select>
                 </td>
@@ -302,7 +302,7 @@ export function OrderLinesGrid({ purchaseOrderId, totalAmount, initialLines, eng
             >
               <option value="">Seleziona commessa…</option>
               {engagements.map((e) => (
-                <option key={e.id} value={e.id}>{e.label}</option>
+                <option key={e.id} value={e.id} disabled={e.inactive}>{e.label}</option>
               ))}
             </select>
             <select
