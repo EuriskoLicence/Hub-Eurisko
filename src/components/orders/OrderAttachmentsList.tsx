@@ -21,19 +21,21 @@ async function prepareFile(file: File): Promise<File> {
 export type AttachmentItem = { id?: string; key: string; filename: string }
 
 type Props = {
-  /** id dell'OdA (UUID generato client-side prima del salvataggio o id reale dopo). Usato come prefisso R2. */
+  /** id dell'entità (UUID generato client-side prima del salvataggio o id reale dopo). Usato come prefisso R2. */
   purchaseOrderId: string
+  /** Tipo entità: determina il path R2 e il permesso richiesto lato server. Default 'purchase-order'. */
+  kind?:           'purchase-order' | 'invoice'
   attachments:     AttachmentItem[]
   disabled?:       boolean
-  /** chiamata a upload completato (R2 OK). Per OdA esistente, il chiamante salva anche su DB. */
+  /** chiamata a upload completato (R2 OK). Per entità esistente, il chiamante salva anche su DB. */
   onUploaded:      (att: AttachmentItem) => void
-  /** chiamata a rimozione locale. Per OdA esistente, il chiamante elimina anche su DB. */
+  /** chiamata a rimozione locale. Per entità esistente, il chiamante elimina anche su DB. */
   onRemoved:       (att: AttachmentItem) => void
   /** Se true, blocca l'eliminazione dell'ultimo allegato (vincolo OdA: almeno 1). */
   enforceMinOne?:  boolean
 }
 
-export function OrderAttachmentsList({ purchaseOrderId, attachments, disabled, onUploaded, onRemoved, enforceMinOne = true }: Props) {
+export function OrderAttachmentsList({ purchaseOrderId, kind = 'purchase-order', attachments, disabled, onUploaded, onRemoved, enforceMinOne = true }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -60,12 +62,11 @@ export function OrderAttachmentsList({ purchaseOrderId, attachments, disabled, o
         const presignRes = await fetch('/api/upload/presigned-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            kind:            'purchase-order',
-            filename:        original.name,
-            contentType:     file.type,
-            purchaseOrderId,
-          }),
+          body: JSON.stringify(
+            kind === 'invoice'
+              ? { kind: 'invoice', filename: original.name, contentType: file.type, invoiceId: purchaseOrderId }
+              : { kind: 'purchase-order', filename: original.name, contentType: file.type, purchaseOrderId },
+          ),
         })
         if (!presignRes.ok) {
           const body = await presignRes.json().catch(() => ({}))
@@ -159,7 +160,7 @@ export function OrderAttachmentsList({ purchaseOrderId, attachments, disabled, o
           </button>
           <p className="mt-1 text-xs text-gray-400">
             <Paperclip className="inline h-3 w-3 mr-1" />
-            PDF / immagini · max 10MB · almeno 1 allegato richiesto
+            PDF / immagini · max 10MB{enforceMinOne ? ' · almeno 1 allegato richiesto' : ''}
           </p>
         </div>
       )}

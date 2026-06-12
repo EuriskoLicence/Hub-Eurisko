@@ -6,7 +6,7 @@ import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getPresignedPutUrl, ALLOWED_MIME_TYPES } from '@/lib/r2'
 
 // Schema legacy (note spese): kind opzionale o assente → comportamento esistente.
-// Nuovo schema (purchase-order): richiede kind='purchase-order' + purchaseOrderId.
+// kind='purchase-order' richiede purchaseOrderId; kind='invoice' richiede invoiceId.
 const schema = z.discriminatedUnion('kind', [
   z.object({
     kind:        z.literal('expense').optional(),
@@ -20,6 +20,12 @@ const schema = z.discriminatedUnion('kind', [
     filename:        z.string().min(1).max(255),
     contentType:     z.enum(ALLOWED_MIME_TYPES),
     purchaseOrderId: z.string().uuid(),
+  }),
+  z.object({
+    kind:        z.literal('invoice'),
+    filename:    z.string().min(1).max(255),
+    contentType: z.enum(ALLOWED_MIME_TYPES),
+    invoiceId:   z.string().uuid(),
   }),
 ])
 
@@ -71,6 +77,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Non autorizzato.' }, { status: 403 })
     }
     key = `purchase-orders/${parsed.data.purchaseOrderId}/${randomUUID()}.${ext}`
+  } else if (parsed.data.kind === 'invoice') {
+    // Solo chi gestisce la fatturazione può caricare allegati nella cartella invoices/
+    if (!hasSection(session, 'INVOICES_MANAGE')) {
+      return NextResponse.json({ error: 'Non autorizzato.' }, { status: 403 })
+    }
+    key = `invoices/${parsed.data.invoiceId}/${randomUUID()}.${ext}`
   } else {
     // Comportamento esistente per le note spese
     const { year, month } = parsed.data

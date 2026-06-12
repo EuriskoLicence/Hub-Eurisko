@@ -23,6 +23,16 @@ export async function GET(
     return NextResponse.redirect(url)
   }
 
+  // Branch fatturazione: chiunque abbia VIEW o MANAGE può visualizzare gli allegati
+  if (key.startsWith('invoices/')) {
+    const canView = hasSection(session, 'INVOICES_VIEW') ||
+                    hasSection(session, 'INVOICES_MANAGE')
+    if (!canView) return NextResponse.json({ error: 'Accesso negato.' }, { status: 403 })
+
+    const url = await getPresignedGetUrl(key)
+    return NextResponse.redirect(url)
+  }
+
   // Branch note spese (esistente)
   const isOwner       = key.startsWith(`expenses/${session.user.id}/`)
   const hasFinance    = hasSection(session, 'FINANCE_DASHBOARD') ||
@@ -49,6 +59,15 @@ export async function DELETE(
   // Branch OdA: solo MANAGE può eliminare gli allegati
   if (key.startsWith('purchase-orders/')) {
     if (!hasSection(session, 'PURCHASE_ORDERS_MANAGE')) {
+      return NextResponse.json({ error: 'Accesso negato.' }, { status: 403 })
+    }
+    await deleteObject(key)
+    return NextResponse.json({ ok: true })
+  }
+
+  // Branch fatturazione: solo MANAGE può eliminare gli allegati
+  if (key.startsWith('invoices/')) {
+    if (!hasSection(session, 'INVOICES_MANAGE')) {
       return NextResponse.json({ error: 'Accesso negato.' }, { status: 403 })
     }
     await deleteObject(key)

@@ -5,10 +5,11 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 type Props = {
   checked:    boolean
   paramName?: string
+  label?:     string
 }
 
-/** Toggle "Solo senza posizioni" per la lista OdA. */
-export function OnlyOpenToggle({ checked, paramName = 'onlyOpen' }: Props) {
+/** Toggle URL-driven (default "Solo senza posizioni" per la lista OdA). */
+export function OnlyOpenToggle({ checked, paramName = 'onlyOpen', label = 'Solo senza posizioni' }: Props) {
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
@@ -27,7 +28,7 @@ export function OnlyOpenToggle({ checked, paramName = 'onlyOpen' }: Props) {
         <div className="w-9 h-5 bg-gray-200 peer-checked:bg-amber-500 rounded-full transition-colors" />
         <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4" />
       </div>
-      Solo senza posizioni
+      {label}
     </label>
   )
 }
