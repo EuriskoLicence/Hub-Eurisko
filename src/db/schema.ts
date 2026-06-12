@@ -29,6 +29,11 @@ export const expenseStatusEnum = pgEnum('expense_status', [
   'amendment_rejected',
 ])
 
+export const invoiceTypeEnum = pgEnum('invoice_type', [
+  'invoice',
+  'credit_note',
+])
+
 // ─── Autorizzazione: Sezioni, Profili, Ruoli ─────────────────────────────────
 
 export const sections = pgTable('sections', {
@@ -378,6 +383,48 @@ export const purchaseOrderLines = pgTable('purchase_order_lines', {
   uniqOdaCode: unique().on(t.purchaseOrderId, t.code),
 }))
 
+// ─── Fatturazione (invoices) ─────────────────────────────────────────────────
+
+// Testata fattura / nota credito
+export const invoices = pgTable('invoices', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  clientId:       uuid('client_id').notNull().references(() => clients.id),
+  documentDate:   date('document_date').notNull(),
+  documentNumber: text('document_number').notNull(),
+  type:           invoiceTypeEnum('type').notNull().default('invoice'),
+  currency:       text('currency').notNull().default('EUR'),
+  totalAmount:    numeric('total_amount', { precision: 12, scale: 2 }).notNull(), // Totale Documento (IVA inclusa)
+  vatAmount:      numeric('vat_amount',   { precision: 12, scale: 2 }).notNull(), // può essere 0 (esente)
+  headerText:     text('header_text'),  // note libere di testata
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Allegati fattura (facoltativi, N per documento)
+export const invoiceAttachments = pgTable('invoice_attachments', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  invoiceId:          uuid('invoice_id').notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+  attachmentKey:      text('attachment_key').notNull(),
+  attachmentFilename: text('attachment_filename').notNull(),
+  uploadedAt:         timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Posizioni fattura (importi IVA esclusa)
+// Quadratura: sum(amount) = invoices.totalAmount - invoices.vatAmount
+export const invoiceLines = pgTable('invoice_lines', {
+  id:                    uuid('id').primaryKey().defaultRandom(),
+  invoiceId:             uuid('invoice_id').notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+  lineNumber:            integer('line_number').notNull(),  // progressivo da 1 per fattura, server-side
+  isOdaRelated:          boolean('is_oda_related').notNull().default(true),
+  isTravelReimbursement: boolean('is_travel_reimbursement').notNull().default(false),
+  description:           text('description').notNull(),
+  amount:                numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  purchaseOrderLineId:   uuid('purchase_order_line_id').references(() => purchaseOrderLines.id), // obbligatorio se isOdaRelated
+  createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  uniqInvoiceLine: unique().on(t.invoiceId, t.lineNumber),
+}))
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 
 export const sectionsRelations = relations(sections, ({ many }) => ({
@@ -456,10 +503,26 @@ export const purchaseOrderAttachmentsRelations = relations(purchaseOrderAttachme
   purchaseOrder: one(purchaseOrders, { fields: [purchaseOrderAttachments.purchaseOrderId], references: [purchaseOrders.id] }),
 }))
 
-export const purchaseOrderLinesRelations = relations(purchaseOrderLines, ({ one }) => ({
+export const purchaseOrderLinesRelations = relations(purchaseOrderLines, ({ one, many }) => ({
   purchaseOrder: one(purchaseOrders,             { fields: [purchaseOrderLines.purchaseOrderId], references: [purchaseOrders.id] }),
   engagement:    one(engagements,                { fields: [purchaseOrderLines.engagementId],    references: [engagements.id] }),
   status:        one(purchaseOrderLineStatuses,  { fields: [purchaseOrderLines.statusId],        references: [purchaseOrderLineStatuses.id] }),
+  invoiceLines:  many(invoiceLines),
+}))
+
+export const invoicesRelations = relations(invoices, ({ one, many }) => ({
+  client:      one(clients, { fields: [invoices.clientId], references: [clients.id] }),
+  attachments: many(invoiceAttachments),
+  lines:       many(invoiceLines),
+}))
+
+export const invoiceAttachmentsRelations = relations(invoiceAttachments, ({ one }) => ({
+  invoice: one(invoices, { fields: [invoiceAttachments.invoiceId], references: [invoices.id] }),
+}))
+
+export const invoiceLinesRelations = relations(invoiceLines, ({ one }) => ({
+  invoice:           one(invoices,           { fields: [invoiceLines.invoiceId],           references: [invoices.id] }),
+  purchaseOrderLine: one(purchaseOrderLines, { fields: [invoiceLines.purchaseOrderLineId], references: [purchaseOrderLines.id] }),
 }))
 
 export const engagementUsersRelations = relations(engagementUsers, ({ one }) => ({

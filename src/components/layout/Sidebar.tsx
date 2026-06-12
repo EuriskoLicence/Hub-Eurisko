@@ -8,7 +8,7 @@ import {
   Clock, Receipt, BarChart2, Building2, FolderOpen,
   LayoutDashboard, AlertCircle,
   Users, Shield, CalendarOff, Tag, Briefcase, CalendarDays,
-  ChevronDown, Menu, X, Timer, CheckSquare, ShoppingCart, ListChecks, Activity,
+  ChevronDown, Menu, X, Timer, CheckSquare, ShoppingCart, ListChecks, Activity, FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SectionCode } from '@/lib/permissions/sections'
@@ -57,7 +57,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label:      'Clienti',
-    anySection: ['CLIENTS_VIEW', 'CLIENTS_MANAGE', 'PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_MANAGE'],
+    anySection: ['CLIENTS_VIEW', 'CLIENTS_MANAGE', 'PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_MANAGE', 'INVOICES_VIEW', 'INVOICES_MANAGE'],
     items: [
       {
         label:      'Report',
@@ -82,6 +82,12 @@ const NAV_GROUPS: NavGroup[] = [
         href:       '/clients/orders',
         icon:       ShoppingCart,
         anySection: ['PURCHASE_ORDERS_VIEW', 'PURCHASE_ORDERS_MANAGE'],
+      },
+      {
+        label:      'Fatturazione',
+        href:       '/clients/invoices',
+        icon:       FileText,
+        anySection: ['INVOICES_VIEW', 'INVOICES_MANAGE'],
       },
     ],
   },

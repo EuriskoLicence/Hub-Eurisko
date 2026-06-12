@@ -20,6 +20,10 @@ export const SECTIONS = {
   PURCHASE_ORDERS_VIEW:    'PURCHASE_ORDERS_VIEW',    // Visualizzazione OdA e posizioni
   PURCHASE_ORDERS_MANAGE:  'PURCHASE_ORDERS_MANAGE',  // Creazione/modifica OdA. Abilita anche a essere selezionato come responsabile OdA
 
+  // ─── Fatturazione ───────────────────────────────────────────────────────────
+  INVOICES_VIEW:   'INVOICES_VIEW',   // Visualizzazione fatture e posizioni
+  INVOICES_MANAGE: 'INVOICES_MANAGE', // Creazione/modifica/eliminazione fatture, posizioni e allegati
+
   // ─── HR Finance ─────────────────────────────────────────────────────────────
   FINANCE_DASHBOARD:   'FINANCE_DASHBOARD',   // Dashboard riepilogativa
   FINANCE_AMENDMENT:   'FINANCE_AMENDMENT',   // Gestione rettifiche (approva/rifiuta)
@@ -49,15 +53,17 @@ export const SECTIONS_META: Record<SectionCode, { label: string; description: st
   CLIENTS_MANAGE:            { label: 'Gestione clienti',          description: 'Creazione e modifica clienti, progetti e commesse (con ownership)',                                          sortOrder:  7, area: 'Clienti' },
   PURCHASE_ORDERS_VIEW:      { label: 'Visualizzazione OdA',       description: 'Visualizzazione ordini di acquisto e posizioni',                                                             sortOrder:  8, area: 'Clienti' },
   PURCHASE_ORDERS_MANAGE:    { label: 'Gestione OdA',              description: 'Creazione e modifica ordini di acquisto. Abilita anche a essere selezionato come responsabile OdA.',         sortOrder:  9, area: 'Clienti' },
-  FINANCE_DASHBOARD:         { label: 'Dashboard HR Finance',      description: 'Dashboard riepilogativa consuntivazioni e note spese',                                                       sortOrder: 10, area: 'HR Finance' },
-  FINANCE_AMENDMENT:         { label: 'Gestione rettifiche',       description: 'Approvazione e rifiuto richieste di rettifica',                                                              sortOrder: 11, area: 'HR Finance' },
-  FINANCE_EXPORT:            { label: 'Esportazione dati',         description: 'Esportazione dati consuntivazioni e note spese in CSV/Excel',                                                sortOrder: 12, area: 'HR Finance' },
-  PARAM_USERS:               { label: 'Gestione utenti',           description: 'Creazione e gestione utenti del sistema',                                                                    sortOrder: 13, area: 'Parametrizzazioni' },
-  PARAM_ROLES:               { label: 'Gestione ruoli e profili',  description: 'Creazione e gestione profili e ruoli di autorizzazione',                                                     sortOrder: 14, area: 'Parametrizzazioni' },
-  PARAM_ABSENCES:            { label: 'Voci di assenza',           description: 'Gestione voci di assenza (ferie, malattia, permesso, ecc.)',                                                 sortOrder: 15, area: 'Parametrizzazioni' },
-  PARAM_EXPENSE_CAT:         { label: 'Categorie spese',           description: 'Gestione categorie nota spese e tipi veicolo',                                                               sortOrder: 16, area: 'Parametrizzazioni' },
-  PARAM_ENGAGEMENTS:         { label: 'Tipologie commessa',        description: 'Gestione tipologie commessa (chiavi in mano, T&M, ecc.)',                                                    sortOrder: 17, area: 'Parametrizzazioni' },
-  PARAM_ENGAGEMENT_STATUSES: { label: 'Stati commessa',            description: 'Gestione tabella stati commessa (codice + descrizione)',                                                     sortOrder: 18, area: 'Parametrizzazioni' },
-  PARAM_PO_LINE_STATUSES:    { label: 'Stati posizione OdA',       description: 'Gestione tabella stati posizione OdA (codice + descrizione)',                                                sortOrder: 19, area: 'Parametrizzazioni' },
-  PARAM_HOLIDAYS:            { label: 'Festività',                 description: 'Gestione festività italiane e aziendali',                                                                    sortOrder: 20, area: 'Parametrizzazioni' },
+  INVOICES_VIEW:             { label: 'Visualizzazione fatturazione', description: 'Visualizzazione fatture, note credito e posizioni',                                                        sortOrder: 10, area: 'Clienti' },
+  INVOICES_MANAGE:           { label: 'Gestione fatturazione',     description: 'Creazione, modifica ed eliminazione fatture, posizioni e allegati',                                          sortOrder: 11, area: 'Clienti' },
+  FINANCE_DASHBOARD:         { label: 'Dashboard HR Finance',      description: 'Dashboard riepilogativa consuntivazioni e note spese',                                                       sortOrder: 12, area: 'HR Finance' },
+  FINANCE_AMENDMENT:         { label: 'Gestione rettifiche',       description: 'Approvazione e rifiuto richieste di rettifica',                                                              sortOrder: 13, area: 'HR Finance' },
+  FINANCE_EXPORT:            { label: 'Esportazione dati',         description: 'Esportazione dati consuntivazioni e note spese in CSV/Excel',                                                sortOrder: 14, area: 'HR Finance' },
+  PARAM_USERS:               { label: 'Gestione utenti',           description: 'Creazione e gestione utenti del sistema',                                                                    sortOrder: 15, area: 'Parametrizzazioni' },
+  PARAM_ROLES:               { label: 'Gestione ruoli e profili',  description: 'Creazione e gestione profili e ruoli di autorizzazione',                                                     sortOrder: 16, area: 'Parametrizzazioni' },
+  PARAM_ABSENCES:            { label: 'Voci di assenza',           description: 'Gestione voci di assenza (ferie, malattia, permesso, ecc.)',                                                 sortOrder: 17, area: 'Parametrizzazioni' },
+  PARAM_EXPENSE_CAT:         { label: 'Categorie spese',           description: 'Gestione categorie nota spese e tipi veicolo',                                                               sortOrder: 18, area: 'Parametrizzazioni' },
+  PARAM_ENGAGEMENTS:         { label: 'Tipologie commessa',        description: 'Gestione tipologie commessa (chiavi in mano, T&M, ecc.)',                                                    sortOrder: 19, area: 'Parametrizzazioni' },
+  PARAM_ENGAGEMENT_STATUSES: { label: 'Stati commessa',            description: 'Gestione tabella stati commessa (codice + descrizione)',                                                     sortOrder: 20, area: 'Parametrizzazioni' },
+  PARAM_PO_LINE_STATUSES:    { label: 'Stati posizione OdA',       description: 'Gestione tabella stati posizione OdA (codice + descrizione)',                                                sortOrder: 21, area: 'Parametrizzazioni' },
+  PARAM_HOLIDAYS:            { label: 'Festività',                 description: 'Gestione festività italiane e aziendali',                                                                    sortOrder: 22, area: 'Parametrizzazioni' },
 }
