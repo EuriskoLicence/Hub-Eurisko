@@ -3,10 +3,11 @@ import { notFound, redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { FileText, ChevronLeft, AlertTriangle, Building2, Calendar, Hash, Euro, CheckCircle2 } from 'lucide-react'
-import { getInvoiceDetail } from '../actions'
+import { getInvoiceDetail, getOdaLinesForClient } from '../actions'
 import { getClientList } from '../../actions'
 import { InvoiceHeaderEdit }        from '@/components/invoices/InvoiceHeaderEdit'
 import { InvoiceAttachmentsManager } from '@/components/invoices/InvoiceAttachmentsManager'
+import { InvoiceLinesGrid }         from '@/components/invoices/InvoiceLinesGrid'
 
 type Props = { params: { id: string } }
 
@@ -20,7 +21,10 @@ export default async function InvoiceDetailPage({ params }: Props) {
   const inv = await getInvoiceDetail(params.id)
   if (!inv) notFound()
 
-  const clientsList = canManage ? await getClientList(true) : []
+  const [clientsList, odaLines] = await Promise.all([
+    canManage ? getClientList(true) : Promise.resolve([]),
+    getOdaLinesForClient(inv.clientId),
+  ])
 
   function fmtCur(s: string) {
     return new Intl.NumberFormat('it-IT', { style: 'currency', currency: inv!.currency }).format(Number(s))
@@ -123,20 +127,29 @@ export default async function InvoiceDetailPage({ params }: Props) {
         />
       </div>
 
-      {/* Posizioni — gestione completa in arrivo (Fase 3) */}
+      {/* Posizioni */}
       <div className="space-y-2">
         <h2 className="text-base font-semibold text-gray-800">
           Posizioni
           <span className="ml-2 text-sm font-normal text-gray-400">({inv.lines.length})</span>
         </h2>
-        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-center">
-          <p className="text-sm text-gray-500">
-            La compilazione delle posizioni sarà disponibile a breve.
-          </p>
-          <p className="text-xs text-gray-400 mt-1">
-            Quadratura attesa: Σ posizioni = {fmtCur(String(expected))} (Totale − IVA)
-          </p>
-        </div>
+        <InvoiceLinesGrid
+          invoiceId={inv.id}
+          totalAmount={inv.totalAmount}
+          vatAmount={inv.vatAmount}
+          currency={inv.currency}
+          initialLines={inv.lines.map((l) => ({
+            id:                    l.id,
+            lineNumber:            l.lineNumber,
+            isOdaRelated:          l.isOdaRelated,
+            isTravelReimbursement: l.isTravelReimbursement,
+            description:           l.description,
+            amount:                l.amount,
+            purchaseOrderLineId:   l.purchaseOrderLineId,
+          }))}
+          odaLines={odaLines}
+          canManage={canManage}
+        />
       </div>
     </div>
   )

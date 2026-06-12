@@ -457,3 +457,147 @@ export async function removeInvoiceAttachment(
     return { ok: false, error: 'Errore del server.' }
   }
 }
+
+// ─── POSITIONS ────────────────────────────────────────────────────────────────
+
+const InvoiceLineSchema = z.object({
+  id:                    z.string().uuid().optional(),
+  isOdaRelated:          z.boolean(),
+  isTravelReimbursement: z.boolean(),
+  description:           z.string().min(1, 'Testo posizione obbligatorio.').max(500),
+  amount:                z.number().refine((n) => isFinite(n) && Math.abs(n) > 0.001, 'Importo posizione non valido.'),
+  purchaseOrderLineId:   z.string().uuid().nullable().optional(),
+})
+
+export async function saveInvoiceLines(
+  invoiceId: string,
+  lines: {
+    id?: string
+    isOdaRelated: boolean
+    isTravelReimbursement: boolean
+    description: string
+    amount: number
+    purchaseOrderLineId?: string | null
+  }[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await auth()
+    requireSection(session, 'INVOICES_MANAGE')
+
+    if (!Array.isArray(lines) || lines.length === 0) {
+      return { ok: false, error: 'Inserire almeno una posizione.' }
+    }
+
+    // Validazione singole righe
+    const parsedLines: z.infer<typeof InvoiceLineSchema>[] = []
+    for (const l of lines) {
+      const p = InvoiceLineSchema.safeParse(l)
+      if (!p.success) return { ok: false, error: p.error.errors[0].message }
+      // Coerenza flag ↔ abbinamento
+      if (p.data.isOdaRelated && !p.data.purchaseOrderLineId) {
+        return { ok: false, error: 'Le posizioni riferite a OdA devono avere una posizione OdA abbinata.' }
+      }
+      parsedLines.push(p.data)
+    }
+
+    // Testata
+    const headRows = await db
+      .select({ totalAmount: invoices.totalAmount, vatAmount: invoices.vatAmount, clientId: invoices.clientId })
+      .from(invoices)
+      .where(eq(invoices.id, invoiceId))
+      .limit(1)
+    if (!headRows.length) return { ok: false, error: 'Fattura non trovata.' }
+    const head = headRows[0]
+
+    // Quadratura unica: Σ posizioni = Totale Documento − IVA
+    const sumAmount = parsedLines.reduce((s, l) => s + l.amount, 0)
+    const expected  = Number(head.totalAmount) - Number(head.vatAmount)
+    if (Math.abs(sumAmount - expected) > 0.01) {
+      return {
+        ok: false,
+        error: `La somma delle posizioni (€${sumAmount.toFixed(2)}) non corrisponde a Totale Documento − IVA (€${expected.toFixed(2)}).`,
+      }
+    }
+
+    // Le posizioni OdA abbinate devono appartenere a OdA dello stesso cliente
+    const polIds = Array.from(new Set(
+      parsedLines.map((l) => (l.isOdaRelated ? l.purchaseOrderLineId : null)).filter((id): id is string => !!id),
+    ))
+    if (polIds.length > 0) {
+      const validPols = await db
+        .select({ id: purchaseOrderLines.id })
+        .from(purchaseOrderLines)
+        .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
+        .where(and(
+          sql`${purchaseOrderLines.id} = ANY(ARRAY[${sql.join(polIds.map((id) => sql`${id}::uuid`), sql`, `)}])`,
+          eq(purchaseOrders.clientId, head.clientId),
+        ))
+      const validPolIds = new Set(validPols.map((p) => p.id))
+      for (const id of polIds) {
+        if (!validPolIds.has(id)) {
+          return { ok: false, error: 'Una o più posizioni OdA abbinate non appartengono al cliente della fattura.' }
+        }
+      }
+    }
+
+    // Righe esistenti (per replace strategy e numerazione progressiva)
+    const existingLines = await db
+      .select({ id: invoiceLines.id, lineNumber: invoiceLines.lineNumber })
+      .from(invoiceLines)
+      .where(eq(invoiceLines.invoiceId, invoiceId))
+
+    // 1) delete righe non più in lista
+    const incomingIds = parsedLines.filter((l) => l.id).map((l) => l.id!) as string[]
+    const toDelete = existingLines.filter((e) => !incomingIds.includes(e.id))
+    if (toDelete.length > 0) {
+      await db.delete(invoiceLines).where(
+        sql`${invoiceLines.id} = ANY(ARRAY[${sql.join(toDelete.map((d) => sql`${d.id}::uuid`), sql`, `)}])`,
+      )
+    }
+
+    // 2) update righe esistenti
+    for (const l of parsedLines.filter((p) => p.id)) {
+      await db
+        .update(invoiceLines)
+        .set({
+          isOdaRelated:          l.isOdaRelated,
+          isTravelReimbursement: l.isTravelReimbursement,
+          description:           l.description.trim(),
+          amount:                l.amount.toFixed(2),
+          purchaseOrderLineId:   l.isOdaRelated ? (l.purchaseOrderLineId ?? null) : null,
+        })
+        .where(eq(invoiceLines.id, l.id!))
+    }
+
+    // 3) insert nuove righe con lineNumber progressivo (continua dal max rimasto)
+    const newLines = parsedLines.filter((p) => !p.id)
+    if (newLines.length > 0) {
+      const remainingNumbers = existingLines
+        .filter((e) => incomingIds.includes(e.id))
+        .map((e) => e.lineNumber)
+      let maxNumber = remainingNumbers.reduce((m, n) => Math.max(m, n), 0)
+
+      const inserts = newLines.map((l) => {
+        maxNumber += 1
+        return {
+          invoiceId,
+          lineNumber:            maxNumber,
+          isOdaRelated:          l.isOdaRelated,
+          isTravelReimbursement: l.isTravelReimbursement,
+          description:           l.description.trim(),
+          amount:                l.amount.toFixed(2),
+          purchaseOrderLineId:   l.isOdaRelated ? (l.purchaseOrderLineId ?? null) : null,
+        }
+      })
+      await db.insert(invoiceLines).values(inserts)
+    }
+
+    revalidatePath(`/clients/invoices/${invoiceId}`)
+    revalidatePath('/clients/invoices')
+    return { ok: true }
+  } catch (err) {
+    if (err instanceof HttpError) return { ok: false, error: err.message }
+    console.error('saveInvoiceLines error:', err)
+    return { ok: false, error: 'Errore del server.' }
+  }
+}
