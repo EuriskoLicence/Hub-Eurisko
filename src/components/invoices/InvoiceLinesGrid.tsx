@@ -16,7 +16,7 @@ type LineRow = {
   purchaseOrderLineId:   string
 }
 
-type OdaLineOption = { id: string; label: string }
+type OdaLineOption = { id: string; label: string; inactive?: boolean }
 
 type Props = {
   invoiceId:    string
@@ -213,7 +213,7 @@ export function InvoiceLinesGrid({ invoiceId, totalAmount, vatAmount, currency, 
                     >
                       <option value="">Seleziona…</option>
                       {odaLines.map((o) => (
-                        <option key={o.id} value={o.id}>{o.label}</option>
+                        <option key={o.id} value={o.id} disabled={o.inactive}>{o.label}</option>
                       ))}
                     </select>
                   ) : (
@@ -314,7 +314,7 @@ export function InvoiceLinesGrid({ invoiceId, totalAmount, vatAmount, currency, 
               >
                 <option value="">Seleziona posizione OdA…</option>
                 {odaLines.map((o) => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
+                  <option key={o.id} value={o.id} disabled={o.inactive}>{o.label}</option>
                 ))}
               </select>
             )}
