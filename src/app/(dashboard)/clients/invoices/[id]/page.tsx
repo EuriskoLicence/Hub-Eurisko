@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { FileText, ChevronLeft, AlertTriangle, Building2, Calendar, Hash, Euro, CheckCircle2 } from 'lucide-react'
-import { getInvoiceDetail, getOdaLinesForClient, getReferencedInvoicedOdaLines } from '../actions'
+import { getInvoiceDetail, getOdaLinesForClient, getReferencedUnselectableOdaLines } from '../actions'
 import { getClientList } from '../../actions'
 import { InvoiceHeaderEdit }        from '@/components/invoices/InvoiceHeaderEdit'
 import { InvoiceAttachmentsManager } from '@/components/invoices/InvoiceAttachmentsManager'
@@ -21,13 +21,13 @@ export default async function InvoiceDetailPage({ params }: Props) {
   const inv = await getInvoiceDetail(params.id)
   if (!inv) notFound()
 
-  const [clientsList, openOdaLines, invoicedOdaLines] = await Promise.all([
+  const [clientsList, openOdaLines, unselectableOdaLines] = await Promise.all([
     canManage ? getClientList(true) : Promise.resolve([]),
     getOdaLinesForClient(inv.clientId),
-    getReferencedInvoicedOdaLines(inv.id),
+    getReferencedUnselectableOdaLines(inv.id),
   ])
-  // Merge: selezionabili + posizioni storiche in stato INV (visibili ma disabilitate)
-  const odaLines = [...openOdaLines, ...invoicedOdaLines]
+  // Merge: selezionabili (stato AUT/PAR) + posizioni storiche non più selezionabili (disabilitate)
+  const odaLines = [...openOdaLines, ...unselectableOdaLines]
 
   function fmtCur(s: string) {
     return new Intl.NumberFormat('it-IT', { style: 'currency', currency: inv!.currency }).format(Number(s))

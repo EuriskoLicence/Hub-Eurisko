@@ -201,7 +201,8 @@ export async function getInvoiceDetail(id: string): Promise<InvoiceDetail | null
 
 /**
  * Posizioni OdA del cliente selezionabili per l'abbinamento delle posizioni fattura.
- * Esclude le posizioni con stato 'INV' (fattura emessa).
+ * Whitelist: SOLO posizioni con stato 'AUT' o 'PAR' (le posizioni senza stato o
+ * con altri stati, es. 'INV', sono escluse).
  * NOTA: ulteriori filtri (es. residuo da fatturare) da definire in seguito.
  */
 export async function getOdaLinesForClient(clientId: string): Promise<OdaLineOption[]> {
@@ -217,12 +218,11 @@ export async function getOdaLinesForClient(clientId: string): Promise<OdaLineOpt
       poCode:      purchaseOrders.code,
     })
     .from(purchaseOrderLines)
-    .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
-    .leftJoin (purchaseOrderLineStatuses, eq(purchaseOrderLineStatuses.id, purchaseOrderLines.statusId))
+    .innerJoin(purchaseOrders,            eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
+    .innerJoin(purchaseOrderLineStatuses, eq(purchaseOrderLineStatuses.id, purchaseOrderLines.statusId))
     .where(and(
       eq(purchaseOrders.clientId, clientId),
-      // Stato assente oppure diverso da INV (fattura emessa)
-      sql`(${purchaseOrderLineStatuses.code} IS NULL OR ${purchaseOrderLineStatuses.code} <> 'INV')`,
+      sql`${purchaseOrderLineStatuses.code} IN ('AUT', 'PAR')`,
     ))
     .orderBy(asc(purchaseOrders.code), asc(purchaseOrderLines.code))
 
@@ -234,10 +234,10 @@ export async function getOdaLinesForClient(clientId: string): Promise<OdaLineOpt
 
 /**
  * Posizioni OdA già abbinate a righe di QUESTA fattura ma oggi escluse dal
- * dropdown perché in stato 'INV'. Servono per mostrare correttamente le righe
- * storiche nel grid (opzione visibile ma disabilitata).
+ * dropdown (stato assente o diverso da AUT/PAR). Servono per mostrare
+ * correttamente le righe storiche nel grid (opzione visibile ma disabilitata).
  */
-export async function getReferencedInvoicedOdaLines(invoiceId: string): Promise<OdaLineOption[]> {
+export async function getReferencedUnselectableOdaLines(invoiceId: string): Promise<OdaLineOption[]> {
   const session = await auth()
   requireSection(session, 'INVOICES_VIEW')
 
@@ -248,19 +248,20 @@ export async function getReferencedInvoicedOdaLines(invoiceId: string): Promise<
       description: purchaseOrderLines.description,
       amount:      purchaseOrderLines.amount,
       poCode:      purchaseOrders.code,
+      statusCode:  purchaseOrderLineStatuses.code,
     })
     .from(invoiceLines)
-    .innerJoin(purchaseOrderLines,        eq(purchaseOrderLines.id, invoiceLines.purchaseOrderLineId))
-    .innerJoin(purchaseOrders,            eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
-    .innerJoin(purchaseOrderLineStatuses, eq(purchaseOrderLineStatuses.id, purchaseOrderLines.statusId))
+    .innerJoin(purchaseOrderLines, eq(purchaseOrderLines.id, invoiceLines.purchaseOrderLineId))
+    .innerJoin(purchaseOrders,     eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
+    .leftJoin (purchaseOrderLineStatuses, eq(purchaseOrderLineStatuses.id, purchaseOrderLines.statusId))
     .where(and(
       eq(invoiceLines.invoiceId, invoiceId),
-      eq(purchaseOrderLineStatuses.code, 'INV'),
+      sql`(${purchaseOrderLineStatuses.code} IS NULL OR ${purchaseOrderLineStatuses.code} NOT IN ('AUT', 'PAR'))`,
     ))
 
   return rows.map((r) => ({
     id:       r.id,
-    label:    `OdA ${r.poCode}/${r.lineCode} — ${r.description} (€ ${Number(r.amount).toFixed(2)}) [Fatturata]`,
+    label:    `OdA ${r.poCode}/${r.lineCode} — ${r.description} (€ ${Number(r.amount).toFixed(2)}) [${r.statusCode ?? 'Senza stato'}]`,
     inactive: true,
   }))
 }
