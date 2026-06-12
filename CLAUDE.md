@@ -44,7 +44,7 @@ Sections (hardcoded in `src/lib/permissions/sections.ts`) → Profiles (group of
 
 Session JWT carries `sections: SectionCode[]`. All server actions call `requireSection(session, 'SECTION_CODE')` before doing anything.
 
-Key sections: `TIMESHEET`, `TIMESHEET_EXTRA`, `EXPENSES`, `FINANCE_DASHBOARD`, `FINANCE_EXPORT`, `FINANCE_AMENDMENT`, `PARAM_USERS`, `PARAM_ROLES`, `PARAM_ABSENCES`, `PARAM_EXPENSE_CAT`, `PARAM_ENGAGEMENTS`, `PARAM_ENGAGEMENT_STATUSES`, `PARAM_PO_LINE_STATUSES`, `PARAM_HOLIDAYS`, `CLIENTS_VIEW`, `CLIENTS_MANAGE`, `PURCHASE_ORDERS_VIEW`, `PURCHASE_ORDERS_MANAGE`.
+Key sections: `TIMESHEET`, `TIMESHEET_EXTRA`, `EXPENSES`, `FINANCE_DASHBOARD`, `FINANCE_EXPORT`, `FINANCE_AMENDMENT`, `PARAM_USERS`, `PARAM_ROLES`, `PARAM_ABSENCES`, `PARAM_EXPENSE_CAT`, `PARAM_ENGAGEMENTS`, `PARAM_ENGAGEMENT_STATUSES`, `PARAM_PO_LINE_STATUSES`, `PARAM_HOLIDAYS`, `CLIENTS_VIEW`, `CLIENTS_MANAGE`, `PURCHASE_ORDERS_VIEW`, `PURCHASE_ORDERS_MANAGE`, `INVOICES_VIEW`, `INVOICES_MANAGE`.
 
 ### Route layout
 ```
@@ -56,6 +56,7 @@ src/app/
     expenses/           # Expense reports (year grid + monthly detail)
     clients/            # Clients, projects, engagements, reports
       orders/           # Purchase Orders (OdA): list + new + [id] detail
+      invoices/         # Invoicing (fatture/note credito): list + new + [id] detail
       reports/          # Hours per engagement, engagement list, users-per-engagement,
                         # OdA list, OdA per engagement
     finance/            # HR Finance: amendments, exports, user views
@@ -63,7 +64,7 @@ src/app/
                         # engagement-types, engagement-statuses, po-line-statuses, holidays
   api/
     attachments/[...key]/ # Proxy GET/DELETE to R2 (auth-gated, kind-branched ACL)
-    upload/presigned-url/ # Issues R2 presigned PUT URL (kind: expense | purchase-order)
+    upload/presigned-url/ # Issues R2 presigned PUT URL (kind: expense | purchase-order | invoice)
     export/me/            # User's own exports (CSV + PDF)
     finance/export/       # Finance-level exports (CSV + PDF, excludes partTimeOnly absences)
     finance/remind/       # Send reminder emails via Resend
@@ -84,6 +85,14 @@ src/app/
     sum must equal totalAmount on save, epsilon 0.01)
   - `engagement_statuses` — parametric, optional status on engagements (code 3-char alphanum + description)
   - `purchase_order_line_statuses` — parametric, optional status on positions (code 3-char alphanum)
+- **Invoicing (Fatturazione)**:
+  - `invoices` — header (clientId, documentDate, documentNumber manual, `invoice_type`
+    enum invoice|credit_note, currency, totalAmount, vatAmount, headerText)
+  - `invoice_attachments` — optional, N per document; R2 path under `invoices/`
+  - `invoice_lines` — positions (lineNumber progressive per invoice server-side,
+    `is_oda_related` default TRUE, `is_travel_reimbursement` default false,
+    optional FK to `purchase_order_lines`; balance rule: sum(amount) must equal
+    totalAmount − vatAmount, epsilon 0.01)
 
 - **Flags added to existing tables**:
   - `engagement_types.no_oda` — when true, engagements of this type are excluded
@@ -98,12 +107,14 @@ Status enum (shared by timesheet and expenses): `draft | approved | amendment_re
 Path keys in bucket:
 - Expenses: `expenses/{userId}/{year}/{month}/{uuid}.{ext}` — year/month come from the **expense report** period, not the current date (important: always pass `year` and `month` from the client).
 - Purchase Orders: `purchase-orders/{purchaseOrderId}/{uuid}.{ext}` — the OdA id is pre-generated client-side so the R2 path matches the future PO id.
+- Invoices: `invoices/{invoiceId}/{uuid}.{ext}` — same client-pregenerated-id pattern as OdA.
 
-`POST /api/upload/presigned-url` accepts a discriminated union on `kind` (`'expense'` default for backward compatibility, `'purchase-order'` for OdA). Browser uploads directly to R2 with the presigned PUT URL.
+`POST /api/upload/presigned-url` accepts a discriminated union on `kind` (`'expense'` default for backward compatibility, `'purchase-order'` for OdA, `'invoice'` for Fatturazione). Browser uploads directly to R2 with the presigned PUT URL.
 
 `GET/DELETE /api/attachments/[...key]` has ACL branched by path prefix:
 - `expenses/...` → owner OR finance roles can GET; only owner can DELETE
 - `purchase-orders/...` → `PURCHASE_ORDERS_VIEW` or `MANAGE` can GET; only `MANAGE` can DELETE
+- `invoices/...` → `INVOICES_VIEW` or `MANAGE` can GET; only `MANAGE` can DELETE
 
 Feature flag: `ATTACHMENTS_ENABLED` in `src/lib/features.ts`. Images are compressed client-side via `browser-image-compression` (max 1MB / 1920px) before upload.
 
@@ -120,6 +131,16 @@ Flow: header → at least 1 attachment → positions whose sum must equal `total
   - `sendPurchaseOrderTotalChangedEmail` — on totalAmount change with existing positions
   - `sendPurchaseOrderReminderEmail` — on reminder banner (multi-select responsibles), HTML table of pending OdA per recipient
 
+### Invoicing (Fatturazione)
+Records invoices and credit notes issued to clients, with positions matchable to OdA positions. Actions in `src/app/(dashboard)/clients/invoices/actions.ts`.
+
+- **Header**: client, documentDate, documentNumber (manual, no sequence), type (Fattura/Nota credito — credit notes have NO reference-to-invoice field by explicit decision), currency (EUR/USD/GBP/CHF select), totalAmount, vatAmount (0 allowed = esente), headerText, optional N attachments.
+- **Single balance rule** (enforced in `saveInvoiceLines`, blocking): `sum(lines.amount) == totalAmount − vatAmount` (epsilon 0.01). Implicit list states: "Senza posizioni" / "Da quadrare" / "Quadrata" (`isBalanced` computed in `getInvoices`).
+- **Positions** (`invoice_lines`): lineNumber assigned server-side (progressive from max remaining, replace strategy like OdA); `is_oda_related` checkbox **defaults to CHECKED** on new rows — when checked, an OdA-position match (`purchaseOrderLineId`) is mandatory and must belong to a PO of the invoice's client; unchecking clears the match. `is_travel_reimbursement` checkbox defaults unchecked.
+- **OdA line options**: `getOdaLinesForClient(clientId)` returns ALL PO lines of the client — additional filters (e.g. residual amount to invoice) intentionally deferred.
+- **Edit/delete always allowed** (explicit boss decision): `deleteInvoice` works even with positions (DB cascade + best-effort R2 cleanup, window.confirm in UI); header edit prompts confirm when totals change and lines exist; client change blocked only while lines exist.
+- No emails, no reports yet (deferred backlog: OdA-line filters, invoicing reports).
+
 ### Engagement extra-only flag
 `engagement_users.extra_only` (default `false`) lets the project responsible mark an assignment so the user sees that engagement only in `/timesheet-extra`, not in `/timesheet`. Toggled inline from `EngagementCard.tsx` via `setEngagementUserExtraOnly`. The ordinary timesheet query filters `extra_only = false`, but `saveTimesheetEntries` adds back engagements already referenced by existing entries of the same `(user, year, month)` so historical rows on engagements later flagged extra-only can still be edited/deleted.
 
@@ -130,9 +151,9 @@ Flow: header → at least 1 attachment → positions whose sum must equal `total
 - `MonthGrid` / `ExtraMonthGrid` — timesheet data entry grids (desktop table + mobile cards); both show per-row monthly total ("Totale" column on desktop, collapsible "Riepilogo per riga" card on mobile)
 - `ExpenseGrid` — expense data entry with per-cell attachments; mobile card header shows category + engagement name
 - `AttachmentButton` — upload/view/remove single attachment (expenses), receives `year` + `month` props
-- `OrderAttachmentsList` / `OrderAttachmentsManager` — N-attachment upload for OdA
-- `OrderHeaderEdit` — OdA header edit form, prompts confirm when changing `totalAmount` with positions
-- `OrderLinesGrid` — editable positions table (desktop) + mobile cards with live sum-vs-total badge
+- `OrderAttachmentsList` — generic N-attachment uploader with `kind` prop ('purchase-order' default | 'invoice'); `OrderAttachmentsManager` (OdA) and `InvoiceAttachmentsManager` wrap it with the respective server actions
+- `OrderHeaderEdit` / `InvoiceHeaderEdit` — header edit forms, prompt confirm when changing totals with positions; InvoiceHeaderEdit also exposes always-available delete
+- `OrderLinesGrid` / `InvoiceLinesGrid` — editable positions tables (desktop) + mobile cards with live balance badge (OdA: sum vs total; invoices: sum vs total − VAT)
 - `OdaReminderBanner` — amber banner at top of OdA list with multi-select responsibles modal
 - `EngagementCard` — assigned-user rows expose toggle "Solo extra" (engagement_users.extra_only)
 
