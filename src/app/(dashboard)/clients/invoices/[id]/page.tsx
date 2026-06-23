@@ -91,7 +91,7 @@ export default async function InvoiceDetailPage({ params }: Props) {
       {/* Riepilogo testata */}
       <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-          <Info icon={Building2} label="Cliente"        value={inv.clientName} />
+          <Info icon={Building2} label="Cliente fatturazione" value={inv.clientName} />
           <Info icon={Calendar}  label="Data documento" value={fmtDate(inv.documentDate)} />
           <Info icon={Hash}      label="Numero"         value={inv.documentNumber} />
           <Info icon={Euro}      label="Divisa"         value={inv.currency} />

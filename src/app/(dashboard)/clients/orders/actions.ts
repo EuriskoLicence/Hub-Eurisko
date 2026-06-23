@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { and, eq, sql, asc, inArray, isNull, count, gt, ne } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
@@ -43,6 +44,8 @@ export type PurchaseOrderDetail = {
   number:            string
   clientId:          string
   clientName:        string
+  billingClientId:   string | null
+  billingClientName: string | null
   totalAmount:       string
   responsibleUserId: string
   responsibleName:   string
@@ -159,6 +162,7 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
   const session = await auth()
   requireSection(session, 'PURCHASE_ORDERS_VIEW')
 
+  const billingClient = alias(clients, 'billing_client')
   const headRows = await db
     .select({
       id:                purchaseOrders.id,
@@ -167,6 +171,8 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
       number:            purchaseOrders.number,
       clientId:          purchaseOrders.clientId,
       clientName:        clients.name,
+      billingClientId:   purchaseOrders.billingClientId,
+      billingClientName: billingClient.name,
       totalAmount:       purchaseOrders.totalAmount,
       responsibleUserId: purchaseOrders.responsibleUserId,
       respFirst:         users.firstName,
@@ -176,8 +182,9 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
       needsReview:       purchaseOrders.needsReview,
     })
     .from(purchaseOrders)
-    .innerJoin(clients, eq(clients.id, purchaseOrders.clientId))
-    .innerJoin(users,   eq(users.id,   purchaseOrders.responsibleUserId))
+    .innerJoin(clients,       eq(clients.id,       purchaseOrders.clientId))
+    .leftJoin (billingClient, eq(billingClient.id, purchaseOrders.billingClientId))
+    .innerJoin(users,         eq(users.id,         purchaseOrders.responsibleUserId))
     .where(eq(purchaseOrders.id, id))
     .limit(1)
 
@@ -219,6 +226,8 @@ export async function getPurchaseOrderDetail(id: string): Promise<PurchaseOrderD
     number:            h.number,
     clientId:          h.clientId,
     clientName:        h.clientName,
+    billingClientId:   h.billingClientId,
+    billingClientName: h.billingClientName,
     totalAmount:       h.totalAmount,
     responsibleUserId: h.responsibleUserId,
     responsibleName:   `${h.respLast} ${h.respFirst}`,
@@ -384,6 +393,7 @@ const CreateOdaSchema = z.object({
   date:              z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data non valida.'),
   number:            z.string().min(1, 'Numero OdA obbligatorio.').max(80),
   clientId:          z.string().uuid('Cliente obbligatorio.'),
+  billingClientId:   z.string().uuid('Cliente fatturazione obbligatorio.'),
   totalAmount:       z.number().nonnegative('Importo non valido.'),
   responsibleUserId: z.string().uuid('Responsabile obbligatorio.'),
   notes:             z.string().max(2000).optional().nullable(),
@@ -396,7 +406,7 @@ const CreateOdaSchema = z.object({
 export async function createPurchaseOrder(
   data: {
     id?: string;
-    date: string; number: string; clientId: string; totalAmount: number;
+    date: string; number: string; clientId: string; billingClientId: string; totalAmount: number;
     responsibleUserId: string; notes?: string | null;
     attachments: { key: string; filename: string }[];
   },
@@ -425,6 +435,7 @@ export async function createPurchaseOrder(
       date:              parsed.data.date,
       number:            parsed.data.number.trim(),
       clientId:          parsed.data.clientId,
+      billingClientId:   parsed.data.billingClientId,
       totalAmount:       parsed.data.totalAmount.toFixed(2),
       responsibleUserId: parsed.data.responsibleUserId,
       notes:             parsed.data.notes?.trim() || null,

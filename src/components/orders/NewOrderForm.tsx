@@ -37,6 +37,7 @@ export function NewOrderForm({ clients, responsibles }: Props) {
   const [date,        setDate]        = useState(today)
   const [number,      setNumber]      = useState('')
   const [clientId,    setClientId]    = useState('')
+  const [billingClientId, setBillingClientId] = useState('')
   const [totalAmount, setTotalAmount] = useState('')
   const [respId,      setRespId]      = useState('')
   const [notes,       setNotes]       = useState('')
@@ -44,7 +45,7 @@ export function NewOrderForm({ clients, responsibles }: Props) {
   const [error,       setError]       = useState('')
 
   const totalNum = useMemo(() => Number(totalAmount.replace(',', '.')) || 0, [totalAmount])
-  const canSubmit = !!date && !!number.trim() && !!clientId && totalNum > 0 && !!respId && attachments.length >= 1
+  const canSubmit = !!date && !!number.trim() && !!clientId && !!billingClientId && totalNum > 0 && !!respId && attachments.length >= 1
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -59,6 +60,7 @@ export function NewOrderForm({ clients, responsibles }: Props) {
         date,
         number:            number.trim(),
         clientId,
+        billingClientId,
         totalAmount:       totalNum,
         responsibleUserId: respId,
         notes:             notes.trim() || null,
@@ -112,6 +114,20 @@ export function NewOrderForm({ clients, responsibles }: Props) {
           className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
         >
           <option value="">Seleziona cliente…</option>
+          {clients.map((c) => (
+            <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+          ))}
+        </select>
+      </Field>
+
+      <Field icon={Building2} label="Cliente fatturazione *">
+        <select
+          value={billingClientId}
+          onChange={(e) => setBillingClientId(e.target.value)}
+          disabled={isPending}
+          className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        >
+          <option value="">Seleziona cliente fatturazione…</option>
           {clients.map((c) => (
             <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
           ))}

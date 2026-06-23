@@ -200,12 +200,14 @@ export async function getInvoiceDetail(id: string): Promise<InvoiceDetail | null
 }
 
 /**
- * Posizioni OdA del cliente selezionabili per l'abbinamento delle posizioni fattura.
+ * Posizioni OdA selezionabili per l'abbinamento delle posizioni fattura.
+ * Match per CLIENTE DI FATTURAZIONE dell'OdA (purchaseOrders.billingClientId)
+ * uguale al cliente di fatturazione della fattura.
  * Whitelist: SOLO posizioni con stato 'AUT' o 'PAR' (le posizioni senza stato o
  * con altri stati, es. 'INV', sono escluse).
- * NOTA: ulteriori filtri (es. residuo da fatturare) da definire in seguito.
+ * NOTA: gli OdA con billingClientId ancora NULL (storici non valorizzati) non matchano.
  */
-export async function getOdaLinesForClient(clientId: string): Promise<OdaLineOption[]> {
+export async function getOdaLinesForClient(billingClientId: string): Promise<OdaLineOption[]> {
   const session = await auth()
   requireSection(session, 'INVOICES_VIEW')
 
@@ -221,7 +223,7 @@ export async function getOdaLinesForClient(clientId: string): Promise<OdaLineOpt
     .innerJoin(purchaseOrders,            eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
     .innerJoin(purchaseOrderLineStatuses, eq(purchaseOrderLineStatuses.id, purchaseOrderLines.statusId))
     .where(and(
-      eq(purchaseOrders.clientId, clientId),
+      eq(purchaseOrders.billingClientId, billingClientId),
       sql`${purchaseOrderLineStatuses.code} IN ('AUT', 'PAR')`,
     ))
     .orderBy(asc(purchaseOrders.code), asc(purchaseOrderLines.code))

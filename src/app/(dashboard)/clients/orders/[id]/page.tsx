@@ -103,6 +103,7 @@ export default async function PurchaseOrderDetailPage({ params }: Props) {
           <Info icon={Calendar}  label="Data"        value={fmtDate(po.date)} />
           <Info icon={Hash}      label="Numero OdA"  value={po.number} />
           <Info icon={Building2} label="Cliente"     value={po.clientName} />
+          <Info icon={Building2} label="Cliente fatturazione" value={po.billingClientName ?? '—'} />
           <Info icon={User}      label="Responsabile">
             <div className="flex flex-col">
               <span>{po.responsibleName}</span>

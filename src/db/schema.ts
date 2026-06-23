@@ -351,6 +351,7 @@ export const purchaseOrders = pgTable('purchase_orders', {
   date:               date('date').notNull(),
   number:             text('number').notNull(),            // numero esterno (cliente)
   clientId:           uuid('client_id').notNull().references(() => clients.id),
+  billingClientId:    uuid('billing_client_id').references(() => clients.id), // cliente fatturazione (nullable; backfill manuale su OdA storici)
   totalAmount:        numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
   responsibleUserId:  uuid('responsible_user_id').notNull().references(() => users.id),
   notes:              text('notes'),

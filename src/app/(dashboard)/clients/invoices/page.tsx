@@ -66,7 +66,7 @@ export default async function InvoicesListPage({ searchParams }: Props) {
       {/* Filtri */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[200px]">
-          <label className="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Cliente fatturazione</label>
           <ClientFilterSelect clients={clientsList.map((c) => ({ id: c.id, name: c.name }))} value={searchParams.clientId ?? ''} />
         </div>
         <div className="flex-1 min-w-[200px]">

@@ -87,14 +87,14 @@ export function NewInvoiceForm({ clients }: Props) {
         </div>
       )}
 
-      <Field icon={Building2} label="Cliente *">
+      <Field icon={Building2} label="Cliente fatturazione *">
         <select
           value={clientId}
           onChange={(e) => setClientId(e.target.value)}
           disabled={isPending}
           className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <option value="">Seleziona cliente…</option>
+          <option value="">Seleziona cliente fatturazione…</option>
           {clients.map((c) => (
             <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
           ))}

@@ -79,7 +79,9 @@ src/app/
 - **Calendar**: `italian_holidays`
 - **Purchase Orders (OdA)**:
   - `purchase_orders` — testata (code 6-digit via PG sequence `purchase_orders_code_seq`,
-    external number, clientId, totalAmount, responsibleUserId, `needs_review` flag)
+    external number, clientId, `billing_client_id` (nullable FK clients — "cliente
+    fatturazione", set at creation, not editable), totalAmount, responsibleUserId,
+    `needs_review` flag)
   - `purchase_order_attachments` — at least 1 mandatory; R2 path under `purchase-orders/`
   - `purchase_order_lines` — positions (code 3-digit per OdA, engagementId, amount;
     sum must equal totalAmount on save, epsilon 0.01)
@@ -125,6 +127,7 @@ Flow: header → at least 1 attachment → positions whose sum must equal `total
 - **Position code**: 3-digit progressive per OdA, computed server-side at save (`MAX(code)+1` per `purchaseOrderId`).
 - **`needs_review`** is set to `true` when a `CLIENTS_MANAGE` user changes `totalAmount` on an OdA that already has positions which no longer sum to the new total. It auto-clears when positions are saved with `sum == totalAmount`.
 - **Engagement selectability for positions**: only those of the header's client where `projects.active=true`, `engagements.conclusa=false`, `engagement_types.no_oda=false`, `engagements.valid_until >= today`.
+- **Billing client (`billing_client_id`)**: mandatory at OdA creation (app-level, via `CreateOdaSchema`), nullable in DB to allow manual backfill of historical OdA on Neon, not editable after creation. Drives the OdA-line matching in invoices.
 - **Deletion**: only allowed when no positions exist; cascades attachments and best-effort cleans up R2.
 - **Emails** (`src/lib/email.ts`):
   - `sendPurchaseOrderAssignedEmail` — on creation and on responsible change
@@ -134,10 +137,10 @@ Flow: header → at least 1 attachment → positions whose sum must equal `total
 ### Invoicing (Fatturazione)
 Records invoices and credit notes issued to clients, with positions matchable to OdA positions. Actions in `src/app/(dashboard)/clients/invoices/actions.ts`.
 
-- **Header**: client, documentDate, documentNumber (manual, no sequence), type (Fattura/Nota credito — credit notes have NO reference-to-invoice field by explicit decision), currency (EUR/USD/GBP/CHF select), totalAmount, vatAmount (0 allowed = esente), headerText, optional N attachments.
+- **Header**: client (labelled "Cliente fatturazione" in the UI — `invoices.clientId` is the billing client), documentDate, documentNumber (manual, no sequence), type (Fattura/Nota credito — credit notes have NO reference-to-invoice field by explicit decision), currency (EUR/USD/GBP/CHF select), totalAmount, vatAmount (0 allowed = esente), headerText, optional N attachments.
 - **Single balance rule** (enforced in `saveInvoiceLines`, blocking): `sum(lines.amount) == totalAmount − vatAmount` (epsilon 0.01). Implicit list states: "Senza posizioni" / "Da quadrare" / "Quadrata" (`isBalanced` computed in `getInvoices`).
 - **Positions** (`invoice_lines`): lineNumber assigned server-side (progressive from max remaining, replace strategy like OdA); `is_oda_related` checkbox **defaults to CHECKED** on new rows — when checked, an OdA-position match (`purchaseOrderLineId`) is mandatory and must belong to a PO of the invoice's client; unchecking clears the match. `is_travel_reimbursement` checkbox defaults unchecked.
-- **OdA line options**: `getOdaLinesForClient(clientId)` is a WHITELIST — only the client's PO lines with status code `'AUT'` or `'PAR'` are selectable (lines with no status or any other status, e.g. `'INV'`, are excluded). Lines already matched by the current invoice but no longer selectable are still shown via `getReferencedUnselectableOdaLines` (label suffixed with their status code, option disabled). Additional filters (e.g. residual amount to invoice) intentionally deferred.
+- **OdA line options**: `getOdaLinesForClient(billingClientId)` matches the OdA's `billing_client_id` against the invoice's billing client (`invoices.clientId`) AND is a WHITELIST on status code `'AUT'` or `'PAR'` (lines with no status or any other status, e.g. `'INV'`, are excluded). Historical OdA whose `billing_client_id` is still NULL won't match until backfilled. Lines already matched by the current invoice but no longer selectable are still shown via `getReferencedUnselectableOdaLines` (label suffixed with their status code, option disabled). Additional filters (e.g. residual amount to invoice) intentionally deferred.
 - **Edit/delete always allowed** (explicit boss decision): `deleteInvoice` works even with positions (DB cascade + best-effort R2 cleanup, window.confirm in UI); header edit prompts confirm when totals change and lines exist; client change blocked only while lines exist.
 - No emails, no reports yet (deferred backlog: OdA-line filters, invoicing reports).
 

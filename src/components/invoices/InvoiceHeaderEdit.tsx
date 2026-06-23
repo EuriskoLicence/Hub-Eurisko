@@ -144,12 +144,12 @@ export function InvoiceHeaderEdit({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Cliente fatturazione</label>
           <select
             value={cli}
             onChange={(e) => setCli(e.target.value)}
             disabled={isPending || hasLines}
-            title={hasLines ? 'Per cambiare cliente elimina prima le posizioni' : undefined}
+            title={hasLines ? 'Per cambiare cliente fatturazione elimina prima le posizioni' : undefined}
             className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
           >
             {clients.map((c) => (
