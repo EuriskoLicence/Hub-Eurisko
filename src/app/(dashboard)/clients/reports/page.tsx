@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
-import { BarChart2, Clock, ChevronRight, List, Users, ShoppingCart, Tag } from 'lucide-react'
+import { BarChart2, Clock, ChevronRight, List, Users, ShoppingCart, Tag, CalendarRange } from 'lucide-react'
 import Link from 'next/link'
 
 export const metadata = { title: 'Report' }
@@ -24,6 +24,15 @@ const REPORTS: ReportCard[] = [
     icon:        Clock,
     color:       'bg-amber-50 border-amber-100',
     iconColor:   'bg-amber-100 text-amber-600',
+    requires:    'CLIENTS_VIEW',
+  },
+  {
+    title:       'Ore mensili per commessa e utente',
+    description: 'Ore consuntivate per commessa e persona, una colonna per mese. Copre più anni in un\'unica estrazione.',
+    href:        '/clients/reports/ore-mensili',
+    icon:        CalendarRange,
+    color:       'bg-teal-50 border-teal-100',
+    iconColor:   'bg-teal-100 text-teal-600',
     requires:    'CLIENTS_VIEW',
   },
   {
