@@ -8,6 +8,7 @@ import {
   engagements, projects, clients, users,
 } from '@/db/schema'
 import { requireSection } from '@/lib/permissions/auth-helpers'
+import { getEngagementBudgetUsage } from '@/lib/engagement-budget'
 
 // ─── Tipi ─────────────────────────────────────────────────────────────────────
 
@@ -47,11 +48,28 @@ export type MonthlyHoursFilters = {
   userId:        string | null
 }
 
+/**
+ * Riepilogo budget di una commessa presente nell'estrazione.
+ * Il consumo è sull'intera vita della commessa (tutti gli utenti, ordinarie + extra,
+ * tutti gli stati) e NON dipende dai filtri periodo/utente del report.
+ */
+export type EngagementSummary = {
+  engagementId:   string
+  engagementName: string
+  compositeCode:  string
+  clientName:     string
+  projectName:    string
+  budgetHours:    number | null  // null = nessun limite
+  workedHours:    number
+  deltaHours:     number | null  // budget − worked; null se budget illimitato
+}
+
 export type MonthlyHoursReport = {
   months:      MonthCol[]              // solo mesi con almeno 1 ora, ordinati cronologicamente
   rows:        MonthlyHoursRow[]
   monthTotals: Record<string, number>  // totale per colonna
   grandTotal:  number
+  engagements: EngagementSummary[]     // commesse presenti in `rows`, stesso ordinamento
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -232,10 +250,34 @@ export async function getMonthlyHoursReport(
       a.userName.localeCompare(b.userName)
     )
 
+  // Riepilogo commesse: una voce per commessa presente nelle righe (già ordinate)
+  const seenEngagements = new Map<string, MonthlyHoursRow>()
+  for (const r of rows) {
+    if (!seenEngagements.has(r.engagementId)) seenEngagements.set(r.engagementId, r)
+  }
+  const usage = await getEngagementBudgetUsage(Array.from(seenEngagements.keys()))
+
+  const engagementSummaries: EngagementSummary[] = Array.from(seenEngagements.values()).map((r) => {
+    const u           = usage.get(r.engagementId)
+    const budgetHours = u?.budgetHours ?? null
+    const workedHours = u?.workedHours ?? 0
+    return {
+      engagementId:   r.engagementId,
+      engagementName: r.engagementName,
+      compositeCode:  r.compositeCode,
+      clientName:     r.clientName,
+      projectName:    r.projectName,
+      budgetHours,
+      workedHours,
+      deltaHours:     budgetHours === null ? null : budgetHours - workedHours,
+    }
+  })
+
   return {
     months,
     rows,
     monthTotals: Object.fromEntries(monthTotals),
     grandTotal:  rows.reduce((s, r) => s + r.totalHours, 0),
+    engagements: engagementSummaries,
   }
 }

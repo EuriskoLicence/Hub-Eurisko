@@ -6,7 +6,9 @@ import {
   getProjectManagers, getActiveClients, getActiveProjects,
   getActiveEngagements, getActiveTimesheetUsers,
 } from '../ore-commessa/actions'
-import { CalendarRange, FileSpreadsheet } from 'lucide-react'
+import { fmtUnit, unitSuffix } from './units'
+import { OnlyOpenToggle } from '@/components/ui/OnlyOpenToggle'
+import { CalendarRange, FileSpreadsheet, Target } from 'lucide-react'
 
 export const metadata = { title: 'Ore mensili per commessa e utente' }
 
@@ -23,6 +25,7 @@ type SP = {
   projectId?:     string
   engagementId?:  string
   userId?:        string
+  days?:          string   // '1' = visualizza in giornate (ore / 8)
 }
 
 export default async function OreMensiliPage({ searchParams }: { searchParams: SP }) {
@@ -42,6 +45,9 @@ export default async function OreMensiliPage({ searchParams }: { searchParams: S
   const projectId     = searchParams.projectId     || null
   const engagementId  = searchParams.engagementId  || null
   const userId        = searchParams.userId        || null
+  const showDays      = searchParams.days === '1'
+  const unit          = unitSuffix(showDays)
+  const unitWord      = showDays ? 'giornate' : 'ore'
 
   const [report, managers, activeClients, activeProjects, activeEngagements, activeUsers] =
     await Promise.all([
@@ -56,7 +62,7 @@ export default async function OreMensiliPage({ searchParams }: { searchParams: S
       getActiveTimesheetUsers(),
     ])
 
-  const { months, rows, monthTotals, grandTotal } = report
+  const { months, rows, monthTotals, grandTotal, engagements } = report
 
   const yearOptions = Array.from({ length: 8 }, (_, i) => now.getFullYear() - i)
 
@@ -71,6 +77,7 @@ export default async function OreMensiliPage({ searchParams }: { searchParams: S
   if (projectId)     exportParams.set('projectId',     projectId)
   if (engagementId)  exportParams.set('engagementId',  engagementId)
   if (userId)        exportParams.set('userId',        userId)
+  if (showDays)      exportParams.set('days',          '1')
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -89,6 +96,9 @@ export default async function OreMensiliPage({ searchParams }: { searchParams: S
 
       {/* Filtri */}
       <form method="get" className="rounded-xl border border-gray-200 bg-white p-4 space-y-4">
+        {/* Il toggle giornate non è un campo del form: lo preserviamo al submit di "Filtra" */}
+        {showDays && <input type="hidden" name="days" value="1" />}
+
         {/* Riga 1: periodo Da → A */}
         <div className="flex flex-wrap items-end gap-3">
           <div>
@@ -151,6 +161,10 @@ export default async function OreMensiliPage({ searchParams }: { searchParams: S
               <option value="">Tutti</option>
               {managers.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
+          </div>
+
+          <div className="ml-auto">
+            <OnlyOpenToggle checked={showDays} paramName="days" label="Mostra in giornate (8 h = 1 gg)" />
           </div>
         </div>
 
@@ -225,15 +239,79 @@ export default async function OreMensiliPage({ searchParams }: { searchParams: S
         </div>
       </form>
 
+      {/* Riepilogo commesse: budget vs consuntivato sull'intera vita della commessa */}
+      {engagements.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="flex items-start gap-2 px-5 py-3 border-b border-gray-100">
+            <Target className="h-4 w-4 mt-0.5 text-teal-600 shrink-0" />
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Riepilogo commesse ({engagements.length})</h2>
+              <p className="text-xs text-gray-400">
+                Consuntivato dall&apos;inizio della commessa: tutti gli utenti, ore ordinarie + extra.
+                Non dipende dai filtri periodo e utente.
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-2.5 font-medium text-gray-600 min-w-[220px]">Commessa</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-gray-600 whitespace-nowrap">Totale {unitWord} commessa</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-gray-600 whitespace-nowrap capitalize">{unitWord} consuntivate</th>
+                  <th className="text-right px-4 py-2.5 font-medium text-gray-600 whitespace-nowrap">Delta</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {engagements.map((e) => (
+                  <tr key={e.engagementId} className="hover:bg-gray-50">
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-gray-900">{e.engagementName}</div>
+                      <div className="text-[11px] text-gray-400">
+                        <span className="font-mono">{e.compositeCode}</span> · {e.clientName} · {e.projectName}
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
+                      {e.budgetHours === null
+                        ? <span className="text-xs text-gray-400">Nessun limite</span>
+                        : `${fmtUnit(e.budgetHours, showDays)} ${unit}`}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-gray-700">
+                      {fmtUnit(e.workedHours, showDays)} {unit}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold">
+                      {e.deltaHours === null ? (
+                        <span className="text-gray-300">—</span>
+                      ) : (
+                        <span
+                          className={
+                            e.deltaHours < 0 ? 'text-red-600'
+                            : e.deltaHours > 0 ? 'text-emerald-600'
+                            : 'text-gray-400'
+                          }
+                          title={e.deltaHours < 0 ? 'Budget superato' : undefined}
+                        >
+                          {fmtUnit(e.deltaHours, showDays)} {unit}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Totale + Export */}
       {rows.length > 0 && (
         <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4">
           <span className="text-sm text-gray-500">
-            Totale ore — {IT_MONTHS[fromMonth - 1]} {fromYear} → {IT_MONTHS[toMonth - 1]} {toYear}
+            Totale {unitWord} — {IT_MONTHS[fromMonth - 1]} {fromYear} → {IT_MONTHS[toMonth - 1]} {toYear}
             <span className="ml-2 text-gray-400">({rows.length} righe · {months.length} mesi)</span>
           </span>
           <div className="flex items-center gap-4">
-            <span className="text-xl font-bold text-gray-900">{grandTotal.toFixed(1)} h</span>
+            <span className="text-xl font-bold text-gray-900">{fmtUnit(grandTotal, showDays)} {unit}</span>
             <a
               href={`/clients/reports/ore-mensili/export?${exportParams}`}
               className="flex items-center gap-2 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
@@ -267,7 +345,7 @@ export default async function OreMensiliPage({ searchParams }: { searchParams: S
                   </th>
                 ))}
                 <th className="text-center px-4 py-3 font-semibold text-gray-700 bg-gray-100 whitespace-nowrap min-w-[90px]">
-                  Totale
+                  Totale ({unit})
                 </th>
               </tr>
             </thead>
@@ -287,12 +365,12 @@ export default async function OreMensiliPage({ searchParams }: { searchParams: S
                     const h = r.hoursByMonth[m.key]
                     return (
                       <td key={m.key} className="px-3 py-3 text-center tabular-nums text-gray-700">
-                        {h ? h : <span className="text-gray-200">—</span>}
+                        {h ? fmtUnit(h, showDays) : <span className="text-gray-200">—</span>}
                       </td>
                     )
                   })}
                   <td className="px-4 py-3 text-center font-semibold tabular-nums text-gray-900 bg-gray-50">
-                    {r.totalHours}
+                    {fmtUnit(r.totalHours, showDays)}
                   </td>
                 </tr>
               ))}
@@ -304,11 +382,11 @@ export default async function OreMensiliPage({ searchParams }: { searchParams: S
                 <td className="px-4 py-3" />
                 {months.map((m) => (
                   <td key={m.key} className="px-3 py-3 text-center font-semibold tabular-nums text-gray-700">
-                    {monthTotals[m.key] ?? 0}
+                    {fmtUnit(monthTotals[m.key] ?? 0, showDays)}
                   </td>
                 ))}
                 <td className="px-4 py-3 text-center font-bold tabular-nums text-gray-900 bg-gray-100">
-                  {grandTotal}
+                  {fmtUnit(grandTotal, showDays)}
                 </td>
               </tr>
             </tfoot>

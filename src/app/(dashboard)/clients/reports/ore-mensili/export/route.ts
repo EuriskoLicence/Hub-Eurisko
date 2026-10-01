@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx-js-style'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getMonthlyHoursReport } from '../actions'
+import { toUnit } from '../units'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
   const projectId     = searchParams.get('projectId')     || null
   const engagementId  = searchParams.get('engagementId')  || null
   const userId        = searchParams.get('userId')        || null
+  const showDays      = searchParams.get('days') === '1'
 
   const { months, rows, monthTotals, grandTotal } = await getMonthlyHoursReport({
     fromYear, fromMonth, toYear, toMonth,
@@ -37,10 +39,11 @@ export async function GET(req: NextRequest) {
     'Codice',
     'Utente',
     ...months.map((m) => m.label),
-    'Totale ore',
+    showDays ? 'Totale giornate' : 'Totale ore',
   ]
 
-  // Celle mese come numeri (Excel deve poterle sommare); 0/assente → cella vuota
+  // Celle mese come numeri (Excel deve poterle sommare); 0/assente → cella vuota.
+  // Con il toggle giornate i valori sono ore / 8, sempre numerici.
   const dataRows: (string | number)[][] = rows.map((r) => [
     r.clientName,
     r.projectName,
@@ -48,14 +51,17 @@ export async function GET(req: NextRequest) {
     r.engagementName,
     r.compositeCode,
     r.userName,
-    ...months.map((m) => r.hoursByMonth[m.key] ?? ''),
-    r.totalHours,
+    ...months.map((m) => {
+      const h = r.hoursByMonth[m.key]
+      return h ? toUnit(h, showDays) : ''
+    }),
+    toUnit(r.totalHours, showDays),
   ])
 
   const totalsRow: (string | number)[] = [
     'Totali', '', '', '', '', '',
-    ...months.map((m) => monthTotals[m.key] ?? 0),
-    grandTotal,
+    ...months.map((m) => toUnit(monthTotals[m.key] ?? 0, showDays)),
+    toUnit(grandTotal, showDays),
   ]
 
   const wb = XLSX.utils.book_new()
@@ -98,7 +104,7 @@ export async function GET(req: NextRequest) {
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
 
   const pad      = (n: number) => String(n).padStart(2, '0')
-  const filename = `ore-mensili-${fromYear}${pad(fromMonth)}-${toYear}${pad(toMonth)}.xlsx`
+  const filename = `ore-mensili-${fromYear}${pad(fromMonth)}-${toYear}${pad(toMonth)}${showDays ? '-giornate' : ''}.xlsx`
 
   return new NextResponse(buffer, {
     status: 200,

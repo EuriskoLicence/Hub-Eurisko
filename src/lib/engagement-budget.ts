@@ -8,6 +8,9 @@ import { db } from '@/db'
 import { engagements, timesheetEntries, timesheetExtraEntries } from '@/db/schema'
 import { and, or, ne, sql } from 'drizzle-orm'
 
+/** Valore sentinella di `engagements.totalHours` quando la commessa non ha budget ore */
+export const UNLIMITED_HOURS = 999999
+
 /** `col = ANY(ARRAY[...::uuid])` per colonne uuid anche nullable */
 function inUuids(col: any, ids: string[]) {
   return sql`${col} = ANY(ARRAY[${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)}])`
@@ -99,4 +102,54 @@ export async function checkEngagementBudgets(opts: {
     .map((e) => `${e.name} (${e.used}h su ${e.budget}h di budget)`)
     .join('; ')
   return { ok: false, error: `Budget ore superato: ${detail}.` }
+}
+
+/**
+ * Budget e consumo ore delle commesse indicate.
+ * Consumo = ore ordinarie + extra, tutti gli utenti, tutti gli stati, tutta la vita
+ * della commessa (stessa regola di `checkEngagementBudgets`, senza esclusioni).
+ * `budgetHours` è null per le commesse senza limite (totalHours >= UNLIMITED_HOURS).
+ */
+export async function getEngagementBudgetUsage(
+  engagementIds: string[],
+): Promise<Map<string, { budgetHours: number | null; workedHours: number }>> {
+  const result = new Map<string, { budgetHours: number | null; workedHours: number }>()
+  if (engagementIds.length === 0) return result
+
+  const [engRows, regularSums, extraSums] = await Promise.all([
+    db
+      .select({ id: engagements.id, totalHours: engagements.totalHours })
+      .from(engagements)
+      .where(inUuids(engagements.id, engagementIds)),
+
+    db
+      .select({
+        engagementId: timesheetEntries.engagementId,
+        total:        sql<number>`cast(coalesce(sum(${timesheetEntries.hours}), 0) as int)`,
+      })
+      .from(timesheetEntries)
+      .where(inUuids(timesheetEntries.engagementId, engagementIds))
+      .groupBy(timesheetEntries.engagementId),
+
+    db
+      .select({
+        engagementId: timesheetExtraEntries.engagementId,
+        total:        sql<number>`cast(coalesce(sum(${timesheetExtraEntries.hours}), 0) as int)`,
+      })
+      .from(timesheetExtraEntries)
+      .where(inUuids(timesheetExtraEntries.engagementId, engagementIds))
+      .groupBy(timesheetExtraEntries.engagementId),
+  ])
+
+  const regularMap = new Map(regularSums.map((r) => [r.engagementId, Number(r.total)]))
+  const extraMap   = new Map(extraSums.map((r)   => [r.engagementId, Number(r.total)]))
+
+  for (const eng of engRows) {
+    result.set(eng.id, {
+      budgetHours: eng.totalHours >= UNLIMITED_HOURS ? null : eng.totalHours,
+      workedHours: (regularMap.get(eng.id) ?? 0) + (extraMap.get(eng.id) ?? 0),
+    })
+  }
+
+  return result
 }
