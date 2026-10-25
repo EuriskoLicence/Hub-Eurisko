@@ -560,7 +560,8 @@ export async function saveInvoiceLines(
       }
     }
 
-    // Le posizioni OdA abbinate devono appartenere a OdA dello stesso cliente
+    // Le posizioni OdA abbinate devono appartenere a OdA con lo stesso CLIENTE FATTURAZIONE
+    // della fattura (invoices.clientId) — stessa regola del dropdown getOdaLinesForClient
     const polIds = Array.from(new Set(
       parsedLines.map((l) => (l.isOdaRelated ? l.purchaseOrderLineId : null)).filter((id): id is string => !!id),
     ))
@@ -571,12 +572,12 @@ export async function saveInvoiceLines(
         .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
         .where(and(
           sql`${purchaseOrderLines.id} = ANY(ARRAY[${sql.join(polIds.map((id) => sql`${id}::uuid`), sql`, `)}])`,
-          eq(purchaseOrders.clientId, head.clientId),
+          eq(purchaseOrders.billingClientId, head.clientId),
         ))
       const validPolIds = new Set(validPols.map((p) => p.id))
       for (const id of polIds) {
         if (!validPolIds.has(id)) {
-          return { ok: false, error: 'Una o più posizioni OdA abbinate non appartengono al cliente della fattura.' }
+          return { ok: false, error: 'Una o più posizioni OdA abbinate non hanno come cliente fatturazione quello della fattura.' }
         }
       }
     }
