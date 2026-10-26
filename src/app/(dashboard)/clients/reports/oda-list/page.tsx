@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getOdaListReport, getOdaFilterClients, getOdaFilterResponsibles, getOdaFilterLineStatuses } from './actions'
-import { ShoppingCart, BarChart2, FileSpreadsheet, AlertTriangle } from 'lucide-react'
+import { checkCoherence, isCoherenceIssue, hasForeignCurrency, type Coherence } from './coherence'
+import { ShoppingCart, BarChart2, FileSpreadsheet, AlertTriangle, CheckCircle2 } from 'lucide-react'
 
 export const metadata = { title: 'Report Lista OdA' }
 
@@ -12,8 +13,31 @@ function fmtEur(s: string | null) {
   if (s === null) return '—'
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(Number(s))
 }
+function fmtEurNum(n: number | null) {
+  if (n === null) return '—'
+  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n)
+}
 function fmtDate(s: string) {
   return new Date(s + 'T00:00:00').toLocaleDateString('it-IT')
+}
+
+function CoherenceBadge({ c }: { c: Coherence }) {
+  if (c.kind === 'na') return <span className="text-gray-300">—</span>
+  if (c.kind === 'ok') {
+    return (
+      <span className="inline-flex items-center gap-1 text-emerald-600">
+        <CheckCircle2 className="h-3 w-3" />Coerente
+      </span>
+    )
+  }
+  const tone = c.kind === 'over' || c.kind === 'negative'
+    ? 'text-red-700 bg-red-50 border-red-200'
+    : 'text-amber-800 bg-amber-50 border-amber-200'
+  return (
+    <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${tone}`}>
+      <AlertTriangle className="h-3 w-3 shrink-0" />{c.label}
+    </span>
+  )
 }
 
 export default async function OdaListReportPage({ searchParams }: { searchParams: SP }) {
@@ -30,6 +54,16 @@ export default async function OdaListReportPage({ searchParams }: { searchParams
     getOdaFilterResponsibles(),
     getOdaFilterLineStatuses(),
   ])
+
+  // Colonne fatturazione solo per chi ha anche il permesso fatture (stessa regola dell'action)
+  const canSeeInvoicing = hasSection(session, 'INVOICES_VIEW')
+
+  const view = rows.map((r) => ({
+    r,
+    coh: checkCoherence(r.lineStatusCode, r.amount !== null ? Number(r.amount) : null, r.invoicedAmount),
+  }))
+  const issuesCount     = view.filter((v) => isCoherenceIssue(v.coh)).length
+  const foreignCurCount = rows.filter((r) => hasForeignCurrency(r.invoiceCurrencies)).length
 
   const exportParams = new URLSearchParams()
   if (clientId)      exportParams.set('clientId',      clientId)
@@ -110,9 +144,27 @@ export default async function OdaListReportPage({ searchParams }: { searchParams
         </div>
       </form>
 
+      {canSeeInvoicing && foreignCurCount > 0 && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            {foreignCurCount} {foreignCurCount === 1 ? 'posizione ha' : 'posizioni hanno'} documenti in una divisa
+            diversa da EUR (la divisa degli OdA). Per queste righe fatturato e importo da fatturare sommano
+            valute diverse senza conversione: sono segnalate con l&apos;indicazione della divisa.
+          </span>
+        </div>
+      )}
+
       {rows.length > 0 && (
         <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4">
-          <span className="text-sm text-gray-500">{rows.length} righe trovate</span>
+          <span className="text-sm text-gray-500">
+            {rows.length} righe trovate
+            {canSeeInvoicing && (
+              issuesCount > 0
+                ? <span className="ml-2 font-semibold text-amber-700">· {issuesCount} {issuesCount === 1 ? 'incoerenza' : 'incoerenze'} stato/fatturazione</span>
+                : <span className="ml-2 text-emerald-600">· nessuna incoerenza stato/fatturazione</span>
+            )}
+          </span>
           <a
             href={`/clients/reports/oda-list/export?${exportParams}`}
             className="flex items-center gap-2 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700"
@@ -149,11 +201,21 @@ export default async function OdaListReportPage({ searchParams }: { searchParams
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Cod. comm.</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Commessa</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Stato pos.</th>
+                {canSeeInvoicing && (
+                  <>
+                    <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Fatturato</th>
+                    <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Da fatturare</th>
+                    <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Coerenza stato</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((r, idx) => (
-                <tr key={`${r.poId}-${r.lineId ?? `empty-${idx}`}`} className="hover:bg-gray-50">
+              {view.map(({ r, coh }, idx) => (
+                <tr
+                  key={`${r.poId}-${r.lineId ?? `empty-${idx}`}`}
+                  className={canSeeInvoicing && isCoherenceIssue(coh) ? 'bg-amber-50/40 hover:bg-amber-50' : 'hover:bg-gray-50'}
+                >
                   <td className="px-2 py-2 font-mono whitespace-nowrap">
                     <span className="font-semibold text-gray-900">{r.poCode}</span>
                     {r.needsReview && (
@@ -179,6 +241,29 @@ export default async function OdaListReportPage({ searchParams }: { searchParams
                       ? <span className="font-mono text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5">{r.lineStatusCode}</span>
                       : '—'}
                   </td>
+                  {canSeeInvoicing && (
+                    <>
+                      <td
+                        className="px-2 py-2 text-right tabular-nums whitespace-nowrap text-gray-700"
+                        title={r.invoiceDocs > 0 ? `${r.invoiceDocs} ${r.invoiceDocs === 1 ? 'documento' : 'documenti'}: ${r.invoiceCurrencies.join(', ')}` : undefined}
+                      >
+                        {fmtEurNum(r.invoicedAmount)}
+                        {hasForeignCurrency(r.invoiceCurrencies) && (
+                          <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800">
+                            {r.invoiceCurrencies.join('+')}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-2 py-2 text-right tabular-nums whitespace-nowrap font-semibold ${
+                        r.residualAmount !== null && r.residualAmount < -0.01 ? 'text-red-600' : 'text-gray-900'
+                      }`}>
+                        {fmtEurNum(r.residualAmount)}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <CoherenceBadge c={coh} />
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

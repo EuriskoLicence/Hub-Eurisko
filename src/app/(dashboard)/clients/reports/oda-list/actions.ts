@@ -1,13 +1,14 @@
 'use server'
 
-import { and, eq, asc } from 'drizzle-orm'
+import { and, eq, asc, isNotNull, sql } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
   purchaseOrders, purchaseOrderLines, purchaseOrderLineStatuses,
   clients, users, engagements, projects,
+  invoices, invoiceLines,
 } from '@/db/schema'
-import { requireSection } from '@/lib/permissions/auth-helpers'
+import { requireSection, hasSection } from '@/lib/permissions/auth-helpers'
 
 export type OdaListReportRow = {
   // Testata
@@ -33,6 +34,11 @@ export type OdaListReportRow = {
   engagementName:    string | null
   lineStatusCode:    string | null
   lineStatusDesc:    string | null
+  // Fatturazione: null se la riga non ha posizione o l'utente non ha INVOICES_VIEW
+  invoicedAmount:    number | null   // Σ posizioni fattura abbinate (fatture +, note credito −), IVA esclusa
+  residualAmount:    number | null   // importo posizione − fatturato
+  invoiceDocs:       number          // n. documenti (fatture + note credito) abbinati
+  invoiceCurrencies: string[]        // divise dei documenti abbinati
 }
 
 export type FilterOption = { id: string; label: string }
@@ -52,6 +58,37 @@ export async function getOdaListReport(filters: {
   const where = conditions.length === 0 ? undefined
               : conditions.length === 1 ? conditions[0]
               :                            and(...conditions)
+
+  // I dati di fatturazione sono protetti da INVOICES_VIEW: senza permesso non vengono letti
+  const canSeeInvoicing = hasSection(session, 'INVOICES_VIEW')
+
+  // Fatturato per posizione OdA: fatture in positivo, note credito in negativo
+  const invoicingByLine = new Map<string, { invoiced: number; docs: number; currencies: string[] }>()
+  if (canSeeInvoicing) {
+    const invRows = await db
+      .select({
+        polId:      invoiceLines.purchaseOrderLineId,
+        invoiced:   sql<string>`coalesce(sum(case when ${invoices.type} = 'credit_note' then -${invoiceLines.amount} else ${invoiceLines.amount} end), 0)`,
+        docs:       sql<number>`cast(count(distinct ${invoices.id}) as int)`,
+        currencies: sql<string>`string_agg(distinct ${invoices.currency}, ',')`,
+      })
+      .from(invoiceLines)
+      .innerJoin(invoices, eq(invoices.id, invoiceLines.invoiceId))
+      .where(and(
+        eq(invoiceLines.isOdaRelated, true),
+        isNotNull(invoiceLines.purchaseOrderLineId),
+      ))
+      .groupBy(invoiceLines.purchaseOrderLineId)
+
+    for (const r of invRows) {
+      if (!r.polId) continue
+      invoicingByLine.set(r.polId, {
+        invoiced:   Number(r.invoiced),
+        docs:       Number(r.docs),
+        currencies: r.currencies ? r.currencies.split(',') : [],
+      })
+    }
+  }
 
   // LEFT JOIN posizioni → riga vuota di posizione se l'OdA non ne ha
   const rows = await db
@@ -90,29 +127,43 @@ export async function getOdaListReport(filters: {
     .where(where)
     .orderBy(asc(purchaseOrders.code), asc(purchaseOrderLines.code))
 
-  return rows.map((r) => ({
-    poId:              r.poId,
-    poCode:            r.poCode,
-    poNumber:          r.poNumber,
-    poDate:            r.poDate,
-    clientCode:        r.clientCode,
-    clientName:        r.clientName,
-    totalAmount:       r.totalAmount,
-    responsibleName:   `${r.respLast} ${r.respFirst}`,
-    responsibleEmail:  r.respEmail,
-    needsReview:       r.needsReview,
-    lineId:            r.lineId,
-    lineCode:          r.lineCode,
-    externalReference: r.externalReference,
-    description:       r.description,
-    amount:            r.amount,
-    projectCode:       r.projectCode,
-    projectName:       r.projectName,
-    engagementCode:    r.engagementCode,
-    engagementName:    r.engagementName,
-    lineStatusCode:    r.lineStatusCode,
-    lineStatusDesc:    r.lineStatusDesc,
-  }))
+  const round2 = (n: number) => Math.round(n * 100) / 100
+
+  return rows.map((r) => {
+    const inv            = r.lineId ? invoicingByLine.get(r.lineId) : undefined
+    const invoicedAmount = canSeeInvoicing && r.lineId ? round2(inv?.invoiced ?? 0) : null
+    const residualAmount = invoicedAmount !== null && r.amount !== null
+      ? round2(Number(r.amount) - invoicedAmount)
+      : null
+
+    return {
+      poId:              r.poId,
+      poCode:            r.poCode,
+      poNumber:          r.poNumber,
+      poDate:            r.poDate,
+      clientCode:        r.clientCode,
+      clientName:        r.clientName,
+      totalAmount:       r.totalAmount,
+      responsibleName:   `${r.respLast} ${r.respFirst}`,
+      responsibleEmail:  r.respEmail,
+      needsReview:       r.needsReview,
+      lineId:            r.lineId,
+      lineCode:          r.lineCode,
+      externalReference: r.externalReference,
+      description:       r.description,
+      amount:            r.amount,
+      projectCode:       r.projectCode,
+      projectName:       r.projectName,
+      engagementCode:    r.engagementCode,
+      engagementName:    r.engagementName,
+      lineStatusCode:    r.lineStatusCode,
+      lineStatusDesc:    r.lineStatusDesc,
+      invoicedAmount,
+      residualAmount,
+      invoiceDocs:       inv?.docs ?? 0,
+      invoiceCurrencies: inv?.currencies ?? [],
+    }
+  })
 }
 
 // ─── Filtri ──────────────────────────────────────────────────────────────────
