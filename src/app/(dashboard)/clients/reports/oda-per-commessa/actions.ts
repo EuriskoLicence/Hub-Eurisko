@@ -4,12 +4,15 @@ import { and, eq, asc, isNull } from 'drizzle-orm'
 import { auth } from '@/auth'
 import { db } from '@/db'
 import {
-  purchaseOrders, purchaseOrderLines,
+  purchaseOrders, purchaseOrderLines, purchaseOrderLineStatuses,
   clients, users, engagements, engagementTypes, engagementStatuses, projects,
 } from '@/db/schema'
-import { requireSection } from '@/lib/permissions/auth-helpers'
+import { requireSection, hasSection } from '@/lib/permissions/auth-helpers'
+import { getInvoicedByOdaLine, invoicingFieldsFor, type OdaLineInvoicingFields } from '@/lib/oda-invoicing'
 
-export type OdaPerCommessaRow = {
+// Campi fatturazione (invoicedAmount, residualAmount, invoiceDocs, invoiceCurrencies):
+// null/vuoti se la riga non ha posizione o l'utente non ha INVOICES_VIEW — vedi src/lib/oda-invoicing.ts
+export type OdaPerCommessaRow = OdaLineInvoicingFields & {
   // Commessa
   engagementId:       string
   clientId:           string
@@ -36,6 +39,8 @@ export type OdaPerCommessaRow = {
   externalReference:  string | null
   description:        string | null
   amount:             string | null
+  lineStatusCode:     string | null   // stato posizione OdA (≠ stato commessa)
+  lineStatusDesc:     string | null
 }
 
 export type FilterOption = { id: string; label: string }
@@ -45,23 +50,34 @@ export type FilterOption = { id: string; label: string }
  *   - undefined / null / ''  → tutte
  *   - 'none'                 → solo commesse senza posizioni OdA
  *   - altro                  → codice OdA specifico (es. '000005')
+ *
+ * Responsabili (filtri distinti):
+ *   - odaResponsibleId     → responsabile OdA: esclude le commesse senza OdA
+ *   - projectResponsibleId → responsabile progetto: mantiene anche le commesse senza OdA
  */
 export async function getOdaPerCommessaReport(filters: {
-  clientId?:    string | null
-  projectId?:   string | null
-  statusId?:    string | null
-  odaFilter?:   string | null
+  clientId?:             string | null
+  projectId?:            string | null
+  statusId?:             string | null
+  odaFilter?:            string | null
+  odaResponsibleId?:     string | null
+  projectResponsibleId?: string | null
 }): Promise<OdaPerCommessaRow[]> {
   const session = await auth()
   requireSection(session, 'PURCHASE_ORDERS_VIEW')
 
   const conditions: any[] = [eq(engagementTypes.noOda, false)]
-  if (filters.clientId)  conditions.push(eq(projects.clientId, filters.clientId))
-  if (filters.projectId) conditions.push(eq(engagements.projectId, filters.projectId))
-  if (filters.statusId)  conditions.push(eq(engagements.statusId, filters.statusId))
+  if (filters.clientId)             conditions.push(eq(projects.clientId, filters.clientId))
+  if (filters.projectId)            conditions.push(eq(engagements.projectId, filters.projectId))
+  if (filters.statusId)             conditions.push(eq(engagements.statusId, filters.statusId))
+  if (filters.odaResponsibleId)     conditions.push(eq(purchaseOrders.responsibleUserId, filters.odaResponsibleId))
+  if (filters.projectResponsibleId) conditions.push(eq(projects.responsibleUserId, filters.projectResponsibleId))
   if (filters.odaFilter === 'none')                  conditions.push(isNull(purchaseOrderLines.id))
   else if (filters.odaFilter && filters.odaFilter)   conditions.push(eq(purchaseOrders.code, filters.odaFilter))
   const where = conditions.length === 1 ? conditions[0] : and(...conditions)
+
+  // I dati di fatturazione sono protetti da INVOICES_VIEW: senza permesso non vengono letti
+  const invoicingByLine = hasSection(session, 'INVOICES_VIEW') ? await getInvoicedByOdaLine() : null
 
   // LEFT JOIN posizioni OdA → commesse senza OdA appaiono comunque
   const rows = await db
@@ -84,6 +100,8 @@ export async function getOdaPerCommessaReport(filters: {
       externalReference:  purchaseOrderLines.externalReference,
       description:        purchaseOrderLines.description,
       amount:             purchaseOrderLines.amount,
+      lineStatusCode:     purchaseOrderLineStatuses.code,
+      lineStatusDesc:     purchaseOrderLineStatuses.description,
       poId:               purchaseOrders.id,
       poCode:             purchaseOrders.code,
       poNumber:           purchaseOrders.number,
@@ -98,6 +116,7 @@ export async function getOdaPerCommessaReport(filters: {
     .innerJoin(clients,         eq(clients.id, projects.clientId))
     .leftJoin (engagementStatuses, eq(engagementStatuses.id, engagements.statusId))
     .leftJoin (purchaseOrderLines, eq(purchaseOrderLines.engagementId, engagements.id))
+    .leftJoin (purchaseOrderLineStatuses, eq(purchaseOrderLineStatuses.id, purchaseOrderLines.statusId))
     .leftJoin (purchaseOrders,     eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
     .leftJoin (users,              eq(users.id, purchaseOrders.responsibleUserId))
     .where(where)
@@ -128,6 +147,9 @@ export async function getOdaPerCommessaReport(filters: {
     externalReference:  r.externalReference,
     description:        r.description,
     amount:             r.amount,
+    lineStatusCode:     r.lineStatusCode,
+    lineStatusDesc:     r.lineStatusDesc,
+    ...invoicingFieldsFor(r.lineId, r.amount, invoicingByLine),
   }))
 }
 
@@ -172,6 +194,24 @@ export async function getCommessaFilterStatuses(): Promise<FilterOption[]> {
     .where(eq(engagementStatuses.active, true))
     .orderBy(asc(engagementStatuses.code))
   return rows.map((r) => ({ id: r.id, label: `${r.code} — ${r.description}` }))
+}
+
+/**
+ * Responsabili progetto con almeno una commessa non «NO OdA».
+ * Gated su PURCHASE_ORDERS_VIEW (getProjectManagers di ore-commessa richiede CLIENTS_VIEW).
+ */
+export async function getCommessaFilterProjectResponsibles(): Promise<FilterOption[]> {
+  const session = await auth()
+  requireSection(session, 'PURCHASE_ORDERS_VIEW')
+  const rows = await db
+    .selectDistinct({ id: users.id, firstName: users.firstName, lastName: users.lastName })
+    .from(projects)
+    .innerJoin(users,           eq(users.id, projects.responsibleUserId))
+    .innerJoin(engagements,     eq(engagements.projectId, projects.id))
+    .innerJoin(engagementTypes, eq(engagementTypes.id, engagements.engagementTypeId))
+    .where(eq(engagementTypes.noOda, false))
+    .orderBy(asc(users.lastName), asc(users.firstName))
+  return rows.map((u) => ({ id: u.id, label: `${u.lastName} ${u.firstName}` }))
 }
 
 /** Codici OdA esistenti (per popolare il filtro "Cod. OdA") */

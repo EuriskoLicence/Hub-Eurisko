@@ -2,8 +2,9 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getOdaListReport, getOdaFilterClients, getOdaFilterResponsibles, getOdaFilterLineStatuses } from './actions'
-import { checkCoherence, isCoherenceIssue, hasForeignCurrency, type Coherence } from './coherence'
-import { ShoppingCart, BarChart2, FileSpreadsheet, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { checkCoherence, isCoherenceIssue, hasForeignCurrency } from '@/lib/oda-coherence'
+import { CoherenceBadge } from '@/components/orders/CoherenceBadge'
+import { ShoppingCart, BarChart2, FileSpreadsheet, AlertTriangle } from 'lucide-react'
 
 export const metadata = { title: 'Report Lista OdA' }
 
@@ -19,25 +20,6 @@ function fmtEurNum(n: number | null) {
 }
 function fmtDate(s: string) {
   return new Date(s + 'T00:00:00').toLocaleDateString('it-IT')
-}
-
-function CoherenceBadge({ c }: { c: Coherence }) {
-  if (c.kind === 'na') return <span className="text-gray-300">—</span>
-  if (c.kind === 'ok') {
-    return (
-      <span className="inline-flex items-center gap-1 text-emerald-600">
-        <CheckCircle2 className="h-3 w-3" />Coerente
-      </span>
-    )
-  }
-  const tone = c.kind === 'over' || c.kind === 'negative'
-    ? 'text-red-700 bg-red-50 border-red-200'
-    : 'text-amber-800 bg-amber-50 border-amber-200'
-  return (
-    <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${tone}`}>
-      <AlertTriangle className="h-3 w-3 shrink-0" />{c.label}
-    </span>
-  )
 }
 
 export default async function OdaListReportPage({ searchParams }: { searchParams: SP }) {

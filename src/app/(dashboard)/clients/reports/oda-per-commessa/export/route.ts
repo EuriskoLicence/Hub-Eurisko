@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx-js-style'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getOdaPerCommessaReport } from '../actions'
+import { checkCoherence, isCoherenceIssue, hasForeignCurrency } from '@/lib/oda-coherence'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -15,8 +16,18 @@ export async function GET(req: NextRequest) {
   const projectId = searchParams.get('projectId') || null
   const statusId  = searchParams.get('statusId')  || null
   const odaFilter = searchParams.get('odaFilter') || null
+  const odaResponsibleId     = searchParams.get('odaResponsibleId')     || null
+  const projectResponsibleId = searchParams.get('projectResponsibleId') || null
 
-  const rows = await getOdaPerCommessaReport({ clientId, projectId, statusId, odaFilter })
+  const rows = await getOdaPerCommessaReport({
+    clientId, projectId, statusId, odaFilter, odaResponsibleId, projectResponsibleId,
+  })
+
+  // Colonne fatturazione solo per chi ha anche il permesso fatture (stessa regola dell'action)
+  const canSeeInvoicing = hasSection(session, 'INVOICES_VIEW')
+  const coherence = rows.map((r) =>
+    checkCoherence(r.lineStatusCode, r.amount !== null ? Number(r.amount) : null, r.invoicedAmount),
+  )
 
   const headers = [
     'Cod. cliente',
@@ -37,9 +48,17 @@ export async function GET(req: NextRequest) {
     'Riferimento esterno',
     'Descrizione posizione',
     'Importo posizione',
+    'Stato pos. OdA (cod.)',
+    'Stato pos. OdA (descr.)',
+    ...(canSeeInvoicing ? ['Importo fatturato', 'Importo da fatturare', 'Coerenza stato / fatturazione'] : []),
   ]
 
-  const dataRows: (string | number)[][] = rows.map((r) => [
+  // Indici delle colonne fatturazione (dopo le 20 colonne base)
+  const COL_INVOICED  = 20
+  const COL_RESIDUAL  = 21
+  const COL_COHERENCE = 22
+
+  const dataRows: (string | number)[][] = rows.map((r, i) => [
     r.clientCode,
     r.clientName,
     r.projectCode,
@@ -58,6 +77,20 @@ export async function GET(req: NextRequest) {
     r.externalReference  ?? '',
     r.description        ?? '',
     r.amount             !== null ? Number(r.amount) : '',
+    r.lineStatusCode     ?? '',
+    r.lineStatusDesc     ?? '',
+    ...(canSeeInvoicing
+      ? [
+          r.invoicedAmount !== null ? r.invoicedAmount : '',
+          r.residualAmount !== null ? r.residualAmount : '',
+          [
+            coherence[i].label,
+            hasForeignCurrency(r.invoiceCurrencies)
+              ? `Divise ${r.invoiceCurrencies.join('+')} sommate senza conversione`
+              : '',
+          ].filter(Boolean).join(' · '),
+        ]
+      : []),
   ])
 
   const wb = XLSX.utils.book_new()
@@ -73,11 +106,14 @@ export async function GET(req: NextRequest) {
     if (ws[cellRef]) ws[cellRef].s = headerStyle
   }
 
-  // Format EUR per importo posizione (col 17)
+  // Format EUR per importo posizione (col 17) e, se visibili, fatturato / da fatturare
+  const eurCols = canSeeInvoicing ? [17, COL_INVOICED, COL_RESIDUAL] : [17]
   for (let r = 1; r <= rows.length; r++) {
-    const ref = XLSX.utils.encode_cell({ r, c: 17 })
-    if (ws[ref] && typeof ws[ref].v === 'number') {
-      ws[ref].z = '#,##0.00 "€"'
+    for (const c of eurCols) {
+      const ref = XLSX.utils.encode_cell({ r, c })
+      if (ws[ref] && typeof ws[ref].v === 'number') {
+        ws[ref].z = '#,##0.00 "€"'
+      }
     }
   }
 
@@ -88,6 +124,25 @@ export async function GET(req: NextRequest) {
       if (ws[ref]) ws[ref].s = { font: { color: { rgb: 'D97706' }, italic: true } }
     }
   })
+
+  // Evidenzia incoerenze stato/fatturazione e importi da fatturare negativi
+  if (canSeeInvoicing) {
+    rows.forEach((r, rowIdx) => {
+      const c = coherence[rowIdx]
+      if (isCoherenceIssue(c)) {
+        const ref = XLSX.utils.encode_cell({ r: rowIdx + 1, c: COL_COHERENCE })
+        const severe = c.kind === 'over' || c.kind === 'negative'
+        if (ws[ref]) ws[ref].s = {
+          font: { color: { rgb: severe ? 'B91C1C' : '92400E' }, bold: true },
+          fill: { fgColor: { rgb: severe ? 'FEE2E2' : 'FEF3C7' } },
+        }
+      }
+      if (r.residualAmount !== null && r.residualAmount < -0.01) {
+        const ref = XLSX.utils.encode_cell({ r: rowIdx + 1, c: COL_RESIDUAL })
+        if (ws[ref]) ws[ref].s = { font: { color: { rgb: 'DC2626' }, bold: true } }
+      }
+    })
+  }
 
   ws['!cols'] = [
     { wch: 12 }, // Cod. cliente
@@ -108,6 +163,15 @@ export async function GET(req: NextRequest) {
     { wch: 18 }, // Rif. esterno
     { wch: 32 }, // Descrizione
     { wch: 14 }, // Importo
+    { wch: 12 }, // Stato pos. OdA (cod.)
+    { wch: 22 }, // Stato pos. OdA (descr.)
+    ...(canSeeInvoicing
+      ? [
+          { wch: 16 }, // Importo fatturato
+          { wch: 18 }, // Importo da fatturare
+          { wch: 48 }, // Coerenza
+        ]
+      : []),
   ]
 
   XLSX.utils.book_append_sheet(wb, ws, 'OdA per commessa')

@@ -7,21 +7,31 @@ import {
   getCommessaFilterProjects,
   getCommessaFilterStatuses,
   getCommessaFilterOdaCodes,
+  getCommessaFilterProjectResponsibles,
 } from './actions'
-import { Tag, BarChart2, FileSpreadsheet } from 'lucide-react'
+import { getOdaFilterResponsibles } from '../oda-list/actions'
+import { checkCoherence, isCoherenceIssue, hasForeignCurrency } from '@/lib/oda-coherence'
+import { CoherenceBadge } from '@/components/orders/CoherenceBadge'
+import { Tag, BarChart2, FileSpreadsheet, AlertTriangle } from 'lucide-react'
 
 export const metadata = { title: 'Report OdA per commessa' }
 
 type SP = {
-  clientId?:  string
-  projectId?: string
-  statusId?:  string
-  odaFilter?: string
+  clientId?:             string
+  projectId?:            string
+  statusId?:             string
+  odaFilter?:            string
+  odaResponsibleId?:     string
+  projectResponsibleId?: string
 }
 
 function fmtEur(s: string | null) {
   if (s === null) return '—'
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(Number(s))
+}
+function fmtEurNum(n: number | null) {
+  if (n === null) return '—'
+  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n)
 }
 function fmtDate(s: string | null) {
   if (!s) return '—'
@@ -36,20 +46,37 @@ export default async function OdaPerCommessaReportPage({ searchParams }: { searc
   const projectId = searchParams.projectId || null
   const statusId  = searchParams.statusId  || null
   const odaFilter = searchParams.odaFilter || null
+  const odaResponsibleId     = searchParams.odaResponsibleId     || null
+  const projectResponsibleId = searchParams.projectResponsibleId || null
 
-  const [rows, filterClients, filterProjects, filterStatuses, filterOdaCodes] = await Promise.all([
-    getOdaPerCommessaReport({ clientId, projectId, statusId, odaFilter }),
-    getCommessaFilterClients(),
-    getCommessaFilterProjects(clientId),
-    getCommessaFilterStatuses(),
-    getCommessaFilterOdaCodes(),
-  ])
+  const [rows, filterClients, filterProjects, filterStatuses, filterOdaCodes, filterOdaResponsibles, filterProjectResponsibles] =
+    await Promise.all([
+      getOdaPerCommessaReport({ clientId, projectId, statusId, odaFilter, odaResponsibleId, projectResponsibleId }),
+      getCommessaFilterClients(),
+      getCommessaFilterProjects(clientId),
+      getCommessaFilterStatuses(),
+      getCommessaFilterOdaCodes(),
+      getOdaFilterResponsibles(),
+      getCommessaFilterProjectResponsibles(),
+    ])
+
+  // Colonne fatturazione solo per chi ha anche il permesso fatture (stessa regola dell'action)
+  const canSeeInvoicing = hasSection(session, 'INVOICES_VIEW')
+
+  const view = rows.map((r) => ({
+    r,
+    coh: checkCoherence(r.lineStatusCode, r.amount !== null ? Number(r.amount) : null, r.invoicedAmount),
+  }))
+  const issuesCount     = view.filter((v) => isCoherenceIssue(v.coh)).length
+  const foreignCurCount = rows.filter((r) => hasForeignCurrency(r.invoiceCurrencies)).length
 
   const exportParams = new URLSearchParams()
-  if (clientId)  exportParams.set('clientId',  clientId)
-  if (projectId) exportParams.set('projectId', projectId)
-  if (statusId)  exportParams.set('statusId',  statusId)
-  if (odaFilter) exportParams.set('odaFilter', odaFilter)
+  if (clientId)             exportParams.set('clientId',             clientId)
+  if (projectId)            exportParams.set('projectId',            projectId)
+  if (statusId)             exportParams.set('statusId',             statusId)
+  if (odaFilter)            exportParams.set('odaFilter',            odaFilter)
+  if (odaResponsibleId)     exportParams.set('odaResponsibleId',     odaResponsibleId)
+  if (projectResponsibleId) exportParams.set('projectResponsibleId', projectResponsibleId)
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -124,6 +151,35 @@ export default async function OdaPerCommessaReportPage({ searchParams }: { searc
             </select>
           </div>
 
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Responsabile OdA</label>
+            <select
+              name="odaResponsibleId"
+              defaultValue={odaResponsibleId ?? ''}
+              title="Esclude le commesse senza OdA"
+              className="rounded-lg border border-gray-200 px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+            >
+              <option value="">Tutti</option>
+              {filterOdaResponsibles.map((u) => (
+                <option key={u.id} value={u.id}>{u.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Responsabile progetto</label>
+            <select
+              name="projectResponsibleId"
+              defaultValue={projectResponsibleId ?? ''}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-500"
+            >
+              <option value="">Tutti</option>
+              {filterProjectResponsibles.map((u) => (
+                <option key={u.id} value={u.id}>{u.label}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               type="submit"
@@ -141,9 +197,37 @@ export default async function OdaPerCommessaReportPage({ searchParams }: { searc
         </div>
       </form>
 
+      {odaResponsibleId && odaFilter === 'none' && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            Il filtro «Responsabile OdA» esclude le commesse senza OdA, quindi combinato con
+            «Solo commesse senza OdA» non restituisce risultati. Per le commesse senza OdA usa «Responsabile progetto».
+          </span>
+        </div>
+      )}
+
+      {canSeeInvoicing && foreignCurCount > 0 && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            {foreignCurCount} {foreignCurCount === 1 ? 'posizione ha' : 'posizioni hanno'} documenti in una divisa
+            diversa da EUR (la divisa degli OdA). Per queste righe fatturato e importo da fatturare sommano
+            valute diverse senza conversione: sono segnalate con l&apos;indicazione della divisa.
+          </span>
+        </div>
+      )}
+
       {rows.length > 0 && (
         <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4">
-          <span className="text-sm text-gray-500">{rows.length} righe trovate</span>
+          <span className="text-sm text-gray-500">
+            {rows.length} righe trovate
+            {canSeeInvoicing && (
+              issuesCount > 0
+                ? <span className="ml-2 font-semibold text-amber-700">· {issuesCount} {issuesCount === 1 ? 'incoerenza' : 'incoerenze'} stato/fatturazione</span>
+                : <span className="ml-2 text-emerald-600">· nessuna incoerenza stato/fatturazione</span>
+            )}
+          </span>
           <a
             href={`/clients/reports/oda-per-commessa/export?${exportParams}`}
             className="flex items-center gap-2 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700"
@@ -179,11 +263,22 @@ export default async function OdaPerCommessaReportPage({ searchParams }: { searc
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Pos.</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Descrizione pos.</th>
                 <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Importo pos.</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Stato pos. OdA</th>
+                {canSeeInvoicing && (
+                  <>
+                    <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Fatturato</th>
+                    <th className="text-right px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Da fatturare</th>
+                    <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Coerenza stato</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((r, idx) => (
-                <tr key={`${r.engagementId}-${r.lineId ?? `empty-${idx}`}`} className="hover:bg-gray-50">
+              {view.map(({ r, coh }, idx) => (
+                <tr
+                  key={`${r.engagementId}-${r.lineId ?? `empty-${idx}`}`}
+                  className={canSeeInvoicing && isCoherenceIssue(coh) ? 'bg-amber-50/40 hover:bg-amber-50' : 'hover:bg-gray-50'}
+                >
                   <td className="px-2 py-2 font-mono text-gray-500 whitespace-nowrap">{r.clientCode}</td>
                   <td className="px-2 py-2 text-gray-900 max-w-[140px] truncate" title={r.clientName}>{r.clientName}</td>
                   <td className="px-2 py-2 font-mono text-gray-500 whitespace-nowrap">{r.projectCode}</td>
@@ -214,6 +309,39 @@ export default async function OdaPerCommessaReportPage({ searchParams }: { searc
                   <td className="px-2 py-2 font-mono text-gray-500 whitespace-nowrap">{r.lineCode ?? '—'}</td>
                   <td className="px-2 py-2 text-gray-700 max-w-[180px] truncate" title={r.description ?? ''}>{r.description ?? '—'}</td>
                   <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap text-gray-700">{fmtEur(r.amount)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">
+                    {r.lineStatusCode
+                      ? <span
+                          className="font-mono text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-1.5 py-0.5"
+                          title={r.lineStatusDesc ?? undefined}
+                        >
+                          {r.lineStatusCode}
+                        </span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                  {canSeeInvoicing && (
+                    <>
+                      <td
+                        className="px-2 py-2 text-right tabular-nums whitespace-nowrap text-gray-700"
+                        title={r.invoiceDocs > 0 ? `${r.invoiceDocs} ${r.invoiceDocs === 1 ? 'documento' : 'documenti'}: ${r.invoiceCurrencies.join(', ')}` : undefined}
+                      >
+                        {fmtEurNum(r.invoicedAmount)}
+                        {hasForeignCurrency(r.invoiceCurrencies) && (
+                          <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] font-semibold text-amber-800">
+                            {r.invoiceCurrencies.join('+')}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`px-2 py-2 text-right tabular-nums whitespace-nowrap font-semibold ${
+                        r.residualAmount !== null && r.residualAmount < -0.01 ? 'text-red-600' : 'text-gray-900'
+                      }`}>
+                        {fmtEurNum(r.residualAmount)}
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <CoherenceBadge c={coh} />
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

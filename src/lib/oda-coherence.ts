@@ -1,7 +1,8 @@
 /**
  * Coerenza tra lo stato posizione OdA (impostato a mano) e gli importi
  * effettivamente fatturati nella sezione Fatturazione.
- * Modulo plain (non 'use server'): condiviso da pagina ed export Excel.
+ * Modulo plain (non 'use server'): condiviso dai report "Lista OdA" e "OdA per commessa"
+ * (pagine ed export Excel).
  *
  * Stato atteso in base agli importi (tolleranza 0,01 €):
  *   fatturato = 0                → AUT

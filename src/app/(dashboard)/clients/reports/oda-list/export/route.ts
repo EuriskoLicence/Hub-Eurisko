@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx-js-style'
 import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import { getOdaListReport } from '../actions'
-import { checkCoherence, isCoherenceIssue, hasForeignCurrency } from '../coherence'
+import { checkCoherence, isCoherenceIssue, hasForeignCurrency } from '@/lib/oda-coherence'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
