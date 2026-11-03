@@ -7,6 +7,7 @@ import { db } from '@/db'
 import {
   clients, projects, engagements, engagementUsers,
   engagementTypes, engagementStatuses, users, roles, roleProfiles, profileSections,
+  purchaseOrders, purchaseOrderLines,
 } from '@/db/schema'
 import { requireSection, hasSection, HttpError } from '@/lib/permissions/auth-helpers'
 import { z } from 'zod'
@@ -81,7 +82,12 @@ export type ProjectDetail = {
   engagements:       EngagementDetail[]
 }
 
-export type EngagementTypeOption = { id: string; name: string }
+export type EngagementTypeOption = {
+  id:     string
+  name:   string
+  active: boolean
+  noOda:  boolean  // tipologia esclusa dagli OdA
+}
 export type UserOption           = { id: string; fullName: string; email: string }
 
 // ─── Lettura ──────────────────────────────────────────────────────────────────
@@ -288,7 +294,15 @@ export async function getEngagementStatusOptions(): Promise<EngagementStatusOpti
 export async function getEngagementTypeOptions(): Promise<EngagementTypeOption[]> {
   const session = await auth()
   requireSection(session, 'CLIENTS_VIEW')
-  const rows = await db.select({ id: engagementTypes.id, name: engagementTypes.name }).from(engagementTypes).orderBy(engagementTypes.name)
+  const rows = await db
+    .select({
+      id:     engagementTypes.id,
+      name:   engagementTypes.name,
+      active: engagementTypes.active,
+      noOda:  engagementTypes.noOda,
+    })
+    .from(engagementTypes)
+    .orderBy(engagementTypes.name)
   return rows
 }
 
@@ -604,6 +618,16 @@ export async function createEngagement(
     const ownerCheck = await checkEngagementOwnership(projectId, userId)
     if ('error' in ownerCheck) return { ok: false, error: ownerCheck.error }
 
+    // Solo tipologie attive (stessa regola della modifica commessa)
+    const typeRows = await db
+      .select({ active: engagementTypes.active })
+      .from(engagementTypes)
+      .where(eq(engagementTypes.id, parsed.data.engagementTypeId))
+      .limit(1)
+    if (!typeRows.length || !typeRows[0].active) {
+      return { ok: false, error: 'La tipologia selezionata non esiste o non è attiva.' }
+    }
+
     // Codice univoco dentro lo stesso progetto
     const allEngCodes = await db.select({ code: engagements.code }).from(engagements).where(eq(engagements.projectId, projectId))
     const engMaxNum = allEngCodes.reduce((m, r) => Math.max(m, parseInt(r.code ?? '0', 10) || 0), 0)
@@ -638,6 +662,7 @@ export async function updateEngagement(
   data: {
     name?: string; totalHours?: number; validUntil?: string;
     conclusa?: boolean; statusId?: string | null;
+    engagementTypeId?: string;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
@@ -646,7 +671,7 @@ export async function updateEngagement(
     const userId = session.user.id
 
     const engRow = await db
-      .select({ projectId: engagements.projectId })
+      .select({ projectId: engagements.projectId, engagementTypeId: engagements.engagementTypeId })
       .from(engagements)
       .where(eq(engagements.id, id))
       .limit(1)
@@ -656,6 +681,48 @@ export async function updateEngagement(
     const ownerCheck = await checkEngagementOwnership(engRow[0].projectId, userId)
     if ('error' in ownerCheck) return { ok: false, error: ownerCheck.error }
 
+    // Cambio tipologia: solo verso tipologie attive; vietato passare a una tipologia
+    // «NO OdA» se la commessa ha già posizioni OdA (sparirebbero dal report
+    // "OdA per commessa" e non sarebbero più selezionabili sulle posizioni OdA)
+    const typeChanging = data.engagementTypeId !== undefined
+                      && data.engagementTypeId !== engRow[0].engagementTypeId
+    if (typeChanging) {
+      if (!z.string().uuid().safeParse(data.engagementTypeId).success) {
+        return { ok: false, error: 'Tipologia non valida.' }
+      }
+      const typeRows = await db
+        .select({ name: engagementTypes.name, active: engagementTypes.active, noOda: engagementTypes.noOda })
+        .from(engagementTypes)
+        .where(eq(engagementTypes.id, data.engagementTypeId!))
+        .limit(1)
+      if (!typeRows.length || !typeRows[0].active) {
+        return { ok: false, error: 'La tipologia selezionata non esiste o non è attiva.' }
+      }
+      const newType = typeRows[0]
+
+      if (newType.noOda) {
+        const poRows = await db
+          .selectDistinct({ code: purchaseOrders.code })
+          .from(purchaseOrderLines)
+          .innerJoin(purchaseOrders, eq(purchaseOrders.id, purchaseOrderLines.purchaseOrderId))
+          .where(eq(purchaseOrderLines.engagementId, id))
+          .orderBy(purchaseOrders.code)
+        if (poRows.length > 0) {
+          const codes = poRows.map((r) => r.code)
+          const shown = codes.length > 5 ? `${codes.slice(0, 5).join(', ')} e altri ${codes.length - 5}` : codes.join(', ')
+          return {
+            ok: false,
+            error:
+              `Impossibile assegnare la tipologia «${newType.name}»: è una tipologia «NO OdA» ` +
+              `e la commessa ha già posizioni su ${codes.length === 1 ? 'questo OdA' : 'questi OdA'}: ${shown}. ` +
+              `Con questa tipologia la commessa e le sue posizioni sparirebbero dal report «OdA per commessa» ` +
+              `e non sarebbero più selezionabili sulle posizioni OdA. ` +
+              `Sposta prima le posizioni su un'altra commessa oppure scegli una tipologia senza «NO OdA».`,
+          }
+        }
+      }
+    }
+
     await db
       .update(engagements)
       .set({
@@ -664,6 +731,7 @@ export async function updateEngagement(
         ...(data.validUntil && { validUntil: data.validUntil }),
         ...(data.conclusa !== undefined && { conclusa: data.conclusa }),
         ...(data.statusId !== undefined && { statusId: data.statusId }),
+        ...(typeChanging && { engagementTypeId: data.engagementTypeId }),
       })
       .where(eq(engagements.id, id))
 

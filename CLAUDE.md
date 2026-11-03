@@ -127,6 +127,7 @@ Flow: header → at least 1 attachment → positions whose sum must equal `total
 - **Position code**: 3-digit progressive per OdA, computed server-side at save (`MAX(code)+1` per `purchaseOrderId`).
 - **`needs_review`** is set to `true` when a `CLIENTS_MANAGE` user changes `totalAmount` on an OdA that already has positions which no longer sum to the new total. It auto-clears when positions are saved with `sum == totalAmount`.
 - **Engagement selectability for positions**: only those of the header's client where `projects.active=true`, `engagements.conclusa=false`, `engagement_types.no_oda=false`, `engagements.valid_until >= today`.
+- **Engagement type is editable** (`updateEngagement`, same permission as the other engagement fields): only active types are allowed (also enforced in `createEngagement` and in both dropdowns), and switching to a `no_oda` type is **blocked server-side** when the engagement already has OdA positions (they would vanish from the "OdA per commessa" report and become unselectable). `no_oda` is the only type attribute with behavioural effects; nothing depends on the type name.
 - **Billing client (`billing_client_id`)**: mandatory at OdA creation (app-level, via `CreateOdaSchema`), nullable in DB to allow manual backfill of historical OdA on Neon, not editable after creation. Drives the OdA-line matching in invoices.
 - **Deletion**: only allowed when no positions exist; cascades attachments and best-effort cleans up R2.
 - **Emails** (`src/lib/email.ts`):

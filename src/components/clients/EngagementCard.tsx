@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Tag, Users, UserPlus, UserMinus, Pencil, ChevronDown, X, Clock, CalendarX2, CheckCircle2, Activity, Timer } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { updateEngagement, assignUserToEngagement, removeUserFromEngagement, setEngagementUserExtraOnly } from '@/app/(dashboard)/clients/actions'
-import type { EngagementDetail, UserOption, EngagementStatusOption } from '@/app/(dashboard)/clients/actions'
+import type { EngagementDetail, UserOption, EngagementStatusOption, EngagementTypeOption } from '@/app/(dashboard)/clients/actions'
 
 type Props = {
   engagement:         EngagementDetail
@@ -14,9 +14,10 @@ type Props = {
   canManage:          boolean
   userOptions:        UserOption[]
   engagementStatuses: EngagementStatusOption[]
+  engagementTypes:    EngagementTypeOption[]
 }
 
-export function EngagementCard({ engagement, projectId, clientId, canManage, userOptions, engagementStatuses }: Props) {
+export function EngagementCard({ engagement, projectId, clientId, canManage, userOptions, engagementStatuses, engagementTypes }: Props) {
   const router = useRouter()
   const [expanded,    setExpanded]    = useState(false)
   const [editOpen,    setEditOpen]    = useState(false)
@@ -25,7 +26,13 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
   const [validUntil,  setValidUntil]  = useState(engagement.validUntil)
   const [conclusa,    setConclusa]    = useState(engagement.conclusa)
   const [statusId,    setStatusId]    = useState<string>(engagement.statusId ?? '')
+  const [engTypeId,   setEngTypeId]   = useState(engagement.engagementTypeId)
   const [error,       setError]       = useState('')
+
+  // Tipologie proponibili in modifica: solo le attive, più quella attuale se disattivata
+  const typeOptions = engagementTypes.filter((t) => t.active || t.id === engagement.engagementTypeId)
+  const selectedType = engagementTypes.find((t) => t.id === engTypeId)
+  const changingToNoOda = engTypeId !== engagement.engagementTypeId && !!selectedType?.noOda
   const [isPending,   startTransition] = useTransition()
   const [addUserId,   setAddUserId]   = useState('')
 
@@ -40,6 +47,7 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
         validUntil: validUntil || '2999-12-31',
         conclusa,
         statusId: statusId || null,
+        ...(engTypeId !== engagement.engagementTypeId && { engagementTypeId: engTypeId }),
       })
       if (res.ok) { setEditOpen(false); router.refresh() }
       else setError(res.error)
@@ -262,6 +270,27 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
                     />
                   </div>
                   <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Tipologia</label>
+                    <select
+                      value={engTypeId}
+                      onChange={(e) => { setEngTypeId(e.target.value); setError('') }}
+                      disabled={isPending}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-base md:text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+                    >
+                      {typeOptions.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}{t.noOda ? ' · NO OdA' : ''}{!t.active ? ' (non attiva)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {changingToNoOda && (
+                      <p className="text-xs text-amber-700 mt-1">
+                        Tipologia «NO OdA»: se la commessa ha già posizioni OdA il cambio verrà bloccato.
+                      </p>
+                    )}
+                  </div>
+                  <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">
                       Totale ore
                     </label>
@@ -331,6 +360,7 @@ export function EngagementCard({ engagement, projectId, clientId, canManage, use
                         setValidUntil(engagement.validUntil)
                         setConclusa(engagement.conclusa)
                         setStatusId(engagement.statusId ?? '')
+                        setEngTypeId(engagement.engagementTypeId)
                         setError('')
                       }}
                       disabled={isPending}

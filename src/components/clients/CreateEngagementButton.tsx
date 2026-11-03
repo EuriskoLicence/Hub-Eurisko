@@ -137,8 +137,8 @@ export function CreateEngagementButton({ projectId, engagementTypes, engagementS
                              disabled:opacity-50"
                 >
                   <option value="">Seleziona tipologia…</option>
-                  {engagementTypes.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                  {engagementTypes.filter((t) => t.active).map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}{t.noOda ? ' · NO OdA' : ''}</option>
                   ))}
                 </select>
               </div>

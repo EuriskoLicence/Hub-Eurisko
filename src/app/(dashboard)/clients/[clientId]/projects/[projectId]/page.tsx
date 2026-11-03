@@ -117,6 +117,7 @@ export default async function ProjectDetailPage({ params, searchParams }: Props)
                 canManage={canManageEngs}
                 userOptions={timesheetUserOptions}
                 engagementStatuses={engStatuses}
+                engagementTypes={engTypes}
               />
             ))}
           </div>
