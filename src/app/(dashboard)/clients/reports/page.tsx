@@ -37,7 +37,7 @@ const REPORTS: ReportCard[] = [
   },
   {
     title:       'Report lista commesse',
-    description: 'Elenco completo delle commesse con codici, progetto, cliente, responsabile e stato attivo/inattivo.',
+    description: 'Elenco completo delle commesse con codici, progetto, cliente, responsabile, tipologia, stato e budget ore.',
     href:        '/clients/reports/lista-commesse',
     icon:        List,
     color:       'bg-blue-50 border-blue-100',

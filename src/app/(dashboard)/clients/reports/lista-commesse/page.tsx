@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { hasSection } from '@/lib/permissions/auth-helpers'
 import {
   getCommessaList, getFilterClients, getFilterProjects, getFilterEngagementStatuses,
+  getFilterEngagementTypes,
   type ConclusedFilter,
 } from './actions'
 import { BarChart2, FileSpreadsheet, List, CheckCircle2 } from 'lucide-react'
@@ -15,6 +16,7 @@ type SP = {
   projectId?:       string
   conclusedFilter?: string
   statusId?:        string
+  typeId?:          string
 }
 
 function HoursCell({ value }: { value: number | null }) {
@@ -41,17 +43,19 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
   const clientId         = searchParams.clientId  || null
   const projectId        = searchParams.projectId || null
   const statusId         = searchParams.statusId  || null
+  const typeId           = searchParams.typeId    || null
   const conclusedFilter  = (
     ['all', 'open', 'closed'].includes(searchParams.conclusedFilter ?? '')
       ? (searchParams.conclusedFilter as ConclusedFilter)
       : 'all'
   ) as ConclusedFilter
 
-  const [rows, allClients, allProjects, allStatuses] = await Promise.all([
-    getCommessaList({ clientId, projectId, conclusedFilter, statusId }),
+  const [rows, allClients, allProjects, allStatuses, allTypes] = await Promise.all([
+    getCommessaList({ clientId, projectId, conclusedFilter, statusId, typeId }),
     getFilterClients(),
     getFilterProjects(clientId),
     getFilterEngagementStatuses(),
+    getFilterEngagementTypes(),
   ])
 
   const exportParams = new URLSearchParams()
@@ -59,6 +63,7 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
   if (projectId)                  exportParams.set('projectId',       projectId)
   if (conclusedFilter !== 'all')  exportParams.set('conclusedFilter', conclusedFilter)
   if (statusId)                   exportParams.set('statusId',        statusId)
+  if (typeId)                     exportParams.set('typeId',          typeId)
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -133,6 +138,20 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
             </select>
           </div>
 
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Tipologia</label>
+            <select
+              name="typeId"
+              defaultValue={typeId ?? ''}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Tutte</option>
+              {allTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               type="submit"
@@ -184,6 +203,7 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap hidden xl:table-cell">Responsabile</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Cod. comm.</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Commessa</th>
+                <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Tipologia</th>
                 <th className="text-center px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Conclusa</th>
                 <th className="text-left px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Stato</th>
                 <th className="text-center px-2 py-2.5 font-medium text-gray-600 whitespace-nowrap">Scadenza</th>
@@ -202,6 +222,7 @@ export default async function ListaCommessePage({ searchParams }: { searchParams
                   <td className="px-2 py-2.5 text-gray-600 hidden xl:table-cell max-w-[130px] truncate" title={r.responsibleName}>{r.responsibleName}</td>
                   <td className="px-2 py-2.5 font-mono text-gray-500 whitespace-nowrap">{r.engagementCode}</td>
                   <td className="px-2 py-2.5 text-gray-700 max-w-[150px] truncate" title={r.engagementName}>{r.engagementName}</td>
+                  <td className="px-2 py-2.5 text-gray-500 max-w-[130px] truncate" title={r.engagementTypeName}>{r.engagementTypeName}</td>
                   <td className="px-2 py-2.5 text-center">
                     {r.conclusa
                       ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 inline" />

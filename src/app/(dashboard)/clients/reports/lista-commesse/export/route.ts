@@ -14,13 +14,14 @@ export async function GET(req: NextRequest) {
   const clientId        = searchParams.get('clientId')  || null
   const projectId       = searchParams.get('projectId') || null
   const statusId        = searchParams.get('statusId')  || null
+  const typeId          = searchParams.get('typeId')    || null
   const conclusedFilter = (
     ['all', 'open', 'closed'].includes(searchParams.get('conclusedFilter') ?? '')
       ? (searchParams.get('conclusedFilter') as ConclusedFilter)
       : 'all'
   ) as ConclusedFilter
 
-  const rows = await getCommessaList({ clientId, projectId, conclusedFilter, statusId })
+  const rows = await getCommessaList({ clientId, projectId, conclusedFilter, statusId, typeId })
 
   const headers = [
     'Cod. cliente',
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
     'Responsabile progetto',
     'Cod. commessa',
     'Commessa',
+    'Tipologia',
     'Conclusa',
     'Stato (cod.)',
     'Stato (descr.)',
@@ -47,6 +49,7 @@ export async function GET(req: NextRequest) {
     r.responsibleName,
     r.engagementCode,
     r.engagementName,
+    r.engagementTypeName,
     r.conclusa ? 'Sì' : 'No',
     r.statusCode        ?? '',
     r.statusDescription ?? '',
@@ -71,16 +74,19 @@ export async function GET(req: NextRequest) {
     if (ws[cellRef]) ws[cellRef].s = headerStyle
   }
 
-  // Stile rosso per ore rimanenti negative (col 13) e per date fine validità già scadute (col 10)
+  // Stile rosso per ore rimanenti negative e per date fine validità già scadute.
+  // Indici ricavati dal nome colonna: restano corretti se si aggiungono colonne.
+  const COL_VALID_UNTIL = headers.indexOf('Fine validità')
+  const COL_REMAINING   = headers.indexOf('Ore rimanenti')
   rows.forEach((r, rowIdx) => {
     if (r.remainingHours !== null && r.remainingHours < 0) {
-      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 13 })
+      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: COL_REMAINING })
       if (ws[cellRef]) {
         ws[cellRef].s = { font: { color: { rgb: 'DC2626' }, bold: true } }
       }
     }
     if (r.validUntil !== '2999-12-31' && new Date(r.validUntil + 'T00:00:00') < new Date()) {
-      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: 10 })
+      const cellRef = XLSX.utils.encode_cell({ r: rowIdx + 1, c: COL_VALID_UNTIL })
       if (ws[cellRef]) {
         ws[cellRef].s = { font: { color: { rgb: 'DC2626' }, bold: true } }
       }
@@ -95,6 +101,7 @@ export async function GET(req: NextRequest) {
     { wch: 28 }, // Responsabile
     { wch: 14 }, // Cod. commessa
     { wch: 35 }, // Commessa
+    { wch: 22 }, // Tipologia
     { wch: 10 }, // Conclusa
     { wch: 12 }, // Stato (cod.)
     { wch: 28 }, // Stato (descr.)

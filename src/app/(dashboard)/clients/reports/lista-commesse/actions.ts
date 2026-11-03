@@ -7,6 +7,7 @@ import {
   clients,
   engagements,
   engagementStatuses,
+  engagementTypes,
   projects,
   users,
   timesheetEntries,
@@ -30,6 +31,7 @@ export type CommessaRow = {
   responsibleName:   string
   engagementCode:    string
   engagementName:    string
+  engagementTypeName: string        // tipologia commessa (obbligatoria in anagrafica)
   validUntil:        string         // YYYY-MM-DD
   conclusa:          boolean
   statusCode:        string | null
@@ -46,6 +48,7 @@ export type CommessaFilters = {
   projectId:       string | null
   conclusedFilter: ConclusedFilter
   statusId:        string | null
+  typeId:          string | null   // tipologia commessa
 }
 
 export type FilterOption = { id: string; label: string }
@@ -62,6 +65,7 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
   if (filters.conclusedFilter === 'open')     conditions.push(eq(engagements.conclusa,  false))
   if (filters.conclusedFilter === 'closed')   conditions.push(eq(engagements.conclusa,  true))
   if (filters.statusId)                       conditions.push(eq(engagements.statusId,  filters.statusId))
+  if (filters.typeId)                         conditions.push(eq(engagements.engagementTypeId, filters.typeId))
 
   // Query principale
   const [mainRows, tsHoursRows, extraHoursRows] = await Promise.all([
@@ -76,6 +80,7 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
         responsibleFirst:  users.firstName,
         engagementCode:    engagements.code,
         engagementName:    engagements.name,
+        engagementTypeName: engagementTypes.name,
         validUntil:        engagements.validUntil,
         totalHours:        engagements.totalHours,
         conclusa:          engagements.conclusa,
@@ -86,6 +91,8 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
       .innerJoin(projects, eq(engagements.projectId,        projects.id))
       .innerJoin(clients,  eq(projects.clientId,            clients.id))
       .innerJoin(users,    eq(projects.responsibleUserId,   users.id))
+      // innerJoin sicuro: engagement_type_id è NOT NULL, nessuna commessa viene esclusa
+      .innerJoin(engagementTypes,    eq(engagementTypes.id,    engagements.engagementTypeId))
       .leftJoin (engagementStatuses, eq(engagementStatuses.id, engagements.statusId))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(asc(clients.name), asc(projects.name), asc(engagements.code)),
@@ -154,6 +161,7 @@ export async function getCommessaList(filters: CommessaFilters): Promise<Commess
       responsibleName:   `${r.responsibleLast} ${r.responsibleFirst}`,
       engagementCode:    r.engagementCode,
       engagementName:    r.engagementName,
+      engagementTypeName: r.engagementTypeName,
       validUntil:        r.validUntil,
       conclusa:          r.conclusa,
       statusCode:        r.statusCode,
@@ -206,4 +214,17 @@ export async function getFilterEngagementStatuses(): Promise<FilterOption[]> {
     .orderBy(asc(engagementStatuses.code))
 
   return rows.map((r) => ({ id: r.id, label: `${r.code} — ${r.description}` }))
+}
+
+/** Tipologie commessa; quelle disattivate restano filtrabili (possono avere commesse esistenti). */
+export async function getFilterEngagementTypes(): Promise<FilterOption[]> {
+  const session = await auth()
+  requireSection(session, 'CLIENTS_VIEW')
+
+  const rows = await db
+    .select({ id: engagementTypes.id, name: engagementTypes.name, active: engagementTypes.active })
+    .from(engagementTypes)
+    .orderBy(asc(engagementTypes.name))
+
+  return rows.map((r) => ({ id: r.id, label: r.active ? r.name : `${r.name} (non attiva)` }))
 }
