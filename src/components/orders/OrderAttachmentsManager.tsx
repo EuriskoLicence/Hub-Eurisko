@@ -52,7 +52,6 @@ export function OrderAttachmentsManager({ poId, attachments: initial, canManage 
         disabled={!canManage}
         onUploaded={handleUploaded}
         onRemoved={handleRemoved}
-        enforceMinOne
       />
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</div>

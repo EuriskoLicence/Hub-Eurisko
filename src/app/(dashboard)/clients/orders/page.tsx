@@ -12,7 +12,7 @@ import { OdaReminderBanner } from '@/components/orders/OdaReminderBanner'
 
 export const metadata = { title: 'Ordini di Acquisto' }
 
-type Props = { searchParams: { clientId?: string; responsibleId?: string; onlyOpen?: string } }
+type Props = { searchParams: { clientId?: string; responsibleId?: string; onlyOpen?: string; onlyNoAttachments?: string } }
 
 export default async function PurchaseOrdersListPage({ searchParams }: Props) {
   const session = await auth()
@@ -25,6 +25,7 @@ export default async function PurchaseOrdersListPage({ searchParams }: Props) {
       clientId:      searchParams.clientId,
       responsibleId: searchParams.responsibleId,
       onlyOpen:      searchParams.onlyOpen === '1',
+      onlyNoAttachments: searchParams.onlyNoAttachments === '1',
     }),
     getClientList(true),
     getResponsibleCandidates(),
@@ -86,6 +87,7 @@ export default async function PurchaseOrdersListPage({ searchParams }: Props) {
           />
         </div>
         <OnlyOpenToggle checked={searchParams.onlyOpen === '1'} />
+        <OnlyOpenToggle checked={searchParams.onlyNoAttachments === '1'} paramName="onlyNoAttachments" label="Solo senza allegati" />
       </div>
 
       {/* Lista */}
@@ -119,6 +121,12 @@ export default async function PurchaseOrdersListPage({ searchParams }: Props) {
                   {!o.hasPositions && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-700">
                       Senza posizioni
+                    </span>
+                  )}
+                  {o.attachmentsCount === 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                      <Paperclip className="h-3 w-3" />
+                      Senza allegati
                     </span>
                   )}
                 </div>

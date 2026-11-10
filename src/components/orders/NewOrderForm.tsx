@@ -45,13 +45,13 @@ export function NewOrderForm({ clients, responsibles }: Props) {
   const [error,       setError]       = useState('')
 
   const totalNum = useMemo(() => Number(totalAmount.replace(',', '.')) || 0, [totalAmount])
-  const canSubmit = !!date && !!number.trim() && !!clientId && !!billingClientId && totalNum > 0 && !!respId && attachments.length >= 1
+  const canSubmit = !!date && !!number.trim() && !!clientId && !!billingClientId && totalNum > 0 && !!respId
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
     if (!canSubmit) {
-      setError('Compila tutti i campi obbligatori e carica almeno un allegato.')
+      setError('Compila tutti i campi obbligatori.')
       return
     }
     startTransition(async () => {
@@ -177,7 +177,7 @@ export function NewOrderForm({ clients, responsibles }: Props) {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1.5">
-          Allegati * <span className="text-gray-400 font-normal">(almeno 1)</span>
+          Allegati <span className="text-gray-400 font-normal">(facoltativi)</span>
         </label>
         <OrderAttachmentsList
           purchaseOrderId={poId}

@@ -31,11 +31,11 @@ type Props = {
   onUploaded:      (att: AttachmentItem) => void
   /** chiamata a rimozione locale. Per entità esistente, il chiamante elimina anche su DB. */
   onRemoved:       (att: AttachmentItem) => void
-  /** Se true, blocca l'eliminazione dell'ultimo allegato (vincolo OdA: almeno 1). */
+  /** Se true, blocca l'eliminazione dell'ultimo allegato. Default false: oggi allegati facoltativi ovunque (OdA e fatture). */
   enforceMinOne?:  boolean
 }
 
-export function OrderAttachmentsList({ purchaseOrderId, kind = 'purchase-order', attachments, disabled, onUploaded, onRemoved, enforceMinOne = true }: Props) {
+export function OrderAttachmentsList({ purchaseOrderId, kind = 'purchase-order', attachments, disabled, onUploaded, onRemoved, enforceMinOne = false }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')

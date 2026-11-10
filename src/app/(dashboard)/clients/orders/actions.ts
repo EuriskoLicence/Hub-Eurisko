@@ -104,6 +104,7 @@ export async function getPurchaseOrders(filters?: {
   clientId?:      string
   responsibleId?: string
   onlyOpen?:      boolean   // se true, solo OdA senza posizioni
+  onlyNoAttachments?: boolean  // se true, solo OdA senza allegati (allegati facoltativi)
 }): Promise<PurchaseOrderRow[]> {
   const session = await auth()
   requireSection(session, 'PURCHASE_ORDERS_VIEW')
@@ -154,7 +155,8 @@ export async function getPurchaseOrders(filters?: {
     attachmentsCount:  Number(r.attachmentsCount),
   }))
 
-  if (filters?.onlyOpen) mapped = mapped.filter((r) => !r.hasPositions)
+  if (filters?.onlyOpen)          mapped = mapped.filter((r) => !r.hasPositions)
+  if (filters?.onlyNoAttachments) mapped = mapped.filter((r) => r.attachmentsCount === 0)
   return mapped
 }
 
@@ -400,7 +402,7 @@ const CreateOdaSchema = z.object({
   attachments:       z.array(z.object({
                        key:      z.string().min(1),
                        filename: z.string().min(1).max(255),
-                     })).min(1, 'Allegare almeno un documento.'),
+                     })),  // facoltativi (anche [])
 })
 
 export async function createPurchaseOrder(
@@ -727,15 +729,6 @@ export async function removePurchaseOrderAttachment(
     if (!rows.length) return { ok: false, error: 'Allegato non trovato.' }
     const att = rows[0]
 
-    // Vincolo: deve restare almeno 1 allegato sull'OdA
-    const cnt = await db
-      .select({ c: count() })
-      .from(purchaseOrderAttachments)
-      .where(eq(purchaseOrderAttachments.purchaseOrderId, att.purchaseOrderId))
-    if (Number(cnt[0]?.c ?? 0) <= 1) {
-      return { ok: false, error: 'L\'OdA deve avere almeno un allegato. Aggiungine un altro prima di rimuovere questo.' }
-    }
-
     await db.delete(purchaseOrderAttachments).where(eq(purchaseOrderAttachments.id, attachmentId))
     deleteObject(att.key).catch((e) => console.error('R2 delete failed:', att.key, e))
 
@@ -786,7 +779,7 @@ export async function savePurchaseOrderLines(
       parsedLines.push(p.data)
     }
 
-    // Recupera testata OdA + verifica esistenza + almeno 1 allegato
+    // Recupera testata OdA + verifica esistenza (allegati facoltativi: nessun vincolo)
     const headRows = await db
       .select({ totalAmount: purchaseOrders.totalAmount, clientId: purchaseOrders.clientId })
       .from(purchaseOrders)
@@ -794,14 +787,6 @@ export async function savePurchaseOrderLines(
       .limit(1)
     if (!headRows.length) return { ok: false, error: 'OdA non trovato.' }
     const head = headRows[0]
-
-    const attCount = await db
-      .select({ c: count() })
-      .from(purchaseOrderAttachments)
-      .where(eq(purchaseOrderAttachments.purchaseOrderId, purchaseOrderId))
-    if (Number(attCount[0]?.c ?? 0) === 0) {
-      return { ok: false, error: 'L\'OdA deve avere almeno un allegato prima di poter inserire le posizioni.' }
-    }
 
     // Verifica somma posizioni
     const sumAmount = parsedLines.reduce((s, l) => s + l.amount, 0)
